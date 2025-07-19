@@ -2,27 +2,45 @@ import sqlite3
 import csv
 import json
 import os 
+import psycopg2 
 
-# RenderでSQLiteを使うためのパス設定
-DATABASE_DIR = '/var/data' if 'RENDER' in os.environ else '.' 
-DATABASE_FILE = os.path.join(DATABASE_DIR, 'drug_data.db')
+# データベース接続のパス/URL設定
+DATABASE_URL = os.environ.get('DATABASE_URL') # Heroku PostgresのURL
+# Renderの永続ディスクは使わない方針になったため、DATABASE_DIR_SQLITE はローカルのみで使用
 
-def clear_all_drugs_data(db_filepath=DATABASE_FILE): 
-    conn = sqlite3.connect(db_filepath)
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM drugs")
-    conn.commit()
-    conn.close()
-    print("既存の薬データを全て削除しました。")
-
-def import_drugs_from_csv(csv_filepath, db_filepath=DATABASE_FILE): 
-    conn = None
-    try:
-        # Render環境の場合、永続ディレクトリを作成
+def get_db_connection_for_import(): 
+    if DATABASE_URL:
+        conn = psycopg2.connect(DATABASE_URL)
+    else:
+        # ローカル開発用にSQLiteをデフォルトにする
+        # ローカルで drug_data.db を使用する場合、ディレクトリを作成
+        DATABASE_DIR = '.' 
         if not os.path.exists(DATABASE_DIR):
             os.makedirs(DATABASE_DIR)
+        DATABASE_FILE = os.path.join(DATABASE_DIR, 'drug_data.db')
+        conn = sqlite3.connect(DATABASE_FILE)
+        
+    conn.row_factory = sqlite3.Row 
+    return conn
 
-        conn = sqlite3.connect(db_filepath)
+def clear_all_drugs_data():
+    conn = None
+    try:
+        conn = get_db_connection_for_import()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM drugs")
+        conn.commit()
+        print("既存の薬データを全て削除しました。")
+    except Exception as e:
+        print(f"データベースクリア中にエラーが発生しました: {e}")
+    finally:
+        if conn:
+            conn.close()
+
+def import_drugs_from_csv(csv_filepath_or_data): # 引数をファイルパスまたは直接データに変更
+    conn = None
+    try:
+        conn = get_db_connection_for_import()
         cursor = conn.cursor()
 
         columns = [
@@ -33,60 +51,61 @@ def import_drugs_from_csv(csv_filepath, db_filepath=DATABASE_FILE):
             'calculated_dose_unit'
         ]
 
-        placeholders = ', '.join(['?' for _ in columns])
-        insert_query = f"INSERT INTO drugs ({', '.join(columns)}) VALUES ({placeholders})"
+        insert_placeholders = ', '.join(['%s'] * len(columns)) if DATABASE_URL else ', '.join(['?'] * len(columns))
+        insert_query = f"INSERT INTO drugs ({', '.join(columns)}) VALUES ({insert_placeholders})"
 
-        print(f"CSVファイル '{csv_filepath}' からデータをインport中...")
+        # CSVデータを直接受け取るか、ファイルパスから読み込むか
+        if isinstance(csv_filepath_or_data, list): # リスト形式でデータが渡された場合
+            csv_rows = csv_filepath_or_data
+            print("リストデータからデータをインポート中...")
+        else: # ファイルパスが渡された場合
+            print(f"CSVファイル '{csv_filepath_or_data}' からデータをインポート中...")
+            with open(csv_filepath_or_data, mode='r', encoding='utf-8') as file:
+                csv_reader_dict = csv.DictReader(file)
+                csv_rows = [row for row in csv_reader_dict]
 
-        with open(csv_filepath, mode='r', encoding='utf-8') as file:
-            csv_reader = csv.DictReader(file)
+        # ヘッダーチェックはDictReaderが自動で行うため、ここでは省略
 
-            if not all(col in csv_reader.fieldnames for col in columns):
-                missing_cols = [col for col in columns if col not in csv_reader.fieldnames]
-                print(f"警告: CSVファイルのヘッダーに不足しているカラムがあります: {', '.join(missing_cols)}")
-                print(f"期待されるカラム: {columns}")
-                print(f"CSVのヘッダー: {csv_reader.fieldnames}")
+        for row_num, row_dict in enumerate(csv_rows, start=2): # DictReaderからの辞書を想定
+            data_to_insert = []
+            for col in columns:
+                value = row_dict.get(col) # 辞書から直接値を取得
 
-            for row_num, row in enumerate(csv_reader, start=2):
-                data_to_insert = []
-                for col in columns:
-                    value = row.get(col) 
-
-                    if col == 'dose_age_specific' and value:
-                        try:
-                            value = json.dumps(json.loads(value))
-                        except json.JSONDecodeError:
-                            print(f"警告: {csv_filepath} の行 {row_num} で '{col}' のJSON形式が不正です: {value}")
-                            value = None
-                    
-                    if col in ['dose_per_kg', 'min_age_months', 'max_age_months', 'fixed_dose']:
-                        if value == '':
-                            value = None
-                        elif value is not None:
-                            try:
-                                value = float(value) if '.' in str(value) else int(value)
-                            except ValueError:
-                                print(f"警告: {csv_filepath} の行 {row_num} で '{col}' の数値形式が不正です: {value}")
-                                value = None
-                    
-                    if col == 'usage_type' and (value is None or value.strip() == ''):
-                        value = '内服' 
-                    
-                    data_to_insert.append(value)
+                if col == 'dose_age_specific' and value:
+                    try:
+                        value = json.dumps(json.loads(value))
+                    except json.JSONDecodeError:
+                        print(f"警告: 行 {row_num} で '{col}' のJSON形式が不正です: {value}")
+                        value = None
                 
-                try:
-                    cursor.execute(insert_query, tuple(data_to_insert))
-                    print(f"行 {row_num} のデータ '{row.get('drug_name', '不明な薬名')}' を挿入しました。")
-                except sqlite3.IntegrityError:
-                    print(f"警告: 行 {row_num} のデータ '{row.get('drug_name', '不明な薬名')}' は既にデータベースに存在するためスキップしました。")
-                except Exception as e:
-                    print(f"エラー: 行 {row_num} のデータ挿入中に問題が発生しました: {e} (データ: {row})")
+                if col in ['dose_per_kg', 'min_age_months', 'max_age_months', 'fixed_dose']:
+                    if value == '':
+                        value = None
+                    elif value is not None:
+                        try:
+                            value = float(value) if '.' in str(value) else int(value)
+                        except ValueError:
+                            print(f"警告: 行 {row_num} で '{col}' の数値形式が不正です: {value}")
+                            value = None
+                
+                if col == 'usage_type' and (value is None or value.strip() == ''):
+                    value = '内服' 
+                
+                data_to_insert.append(value)
+            
+            try:
+                cursor.execute(insert_query, tuple(data_to_insert))
+                print(f"行 {row_num} のデータ '{row_dict.get('drug_name', '不明な薬名')}' を挿入しました。")
+            except (sqlite3.IntegrityError, psycopg2.IntegrityError): 
+                print(f"警告: 行 {row_num} のデータ '{row_dict.get('drug_name', '不明な薬名')}' は既にデータベースに存在するためスキップしました。")
+            except Exception as e:
+                print(f"エラー: 行 {row_num} のデータ挿入中に問題が発生しました: {e} (データ: {row_dict})")
         
         conn.commit()
-        print("CSVからのデータインポートが完了しました。")
+        print("データインポートが完了しました。")
 
     except FileNotFoundError:
-        print(f"エラー: CSVファイル '{csv_filepath}' が見つかりません。")
+        print(f"エラー: CSVファイル '{csv_filepath_or_data}' が見つかりません。")
     except Exception as e:
         print(f"致命的なエラーが発生しました: {e}")
     finally:
@@ -95,8 +114,17 @@ def import_drugs_from_csv(csv_filepath, db_filepath=DATABASE_FILE):
 
 if __name__ == "__main__":
     csv_file = 'drugs_data.csv' 
-    # ローカルでの開発・テスト時には clear_all_drugs_data() を必要に応じて有効に
-    # Render環境で初期データを投入する場合は、RenderのShellやDeploy Hooksで直接実行
+    
+    # ローカルでテストインポートする場合のみ有効にする
     # clear_all_drugs_data() 
+    # import_drugs_from_csv(csv_file)
 
-    import_drugs_from_csv(csv_file)
+    # Heroku/Renderのシェルから直接Pythonを叩くための例
+    # 環境変数 DATABASE_URL が設定されていれば PostgreSQL に接続する
+    # このスクリプトは Render の Web Service デプロイ後に、Render の Shell から実行することを想定
+    if 'DATABASE_URL' in os.environ:
+        # Heroku/Render 上での初期データ投入
+        # CSVデータをPythonコード内に直接記述するか、Webからダウンロードするように変更が必要
+        # 今はテストのため何もしない（Shellで手動実行を想定）
+        print("このスクリプトはローカル開発用です。Heroku/RenderではShellから手動でデータを投入してください。")
+        print("例: python -c \"from import_drugs_from_csv import clear_all_drugs_data, import_drugs_from_csv; import_drugs_from_csv(あなたのCSVデータをPythonリストでここに記述);\"")
