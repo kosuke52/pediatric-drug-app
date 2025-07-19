@@ -1,20 +1,27 @@
 import sqlite3
 import csv
 import json
+import os 
 
-# ★★★ ここに clear_all_drugs_data 関数の定義を追加 ★★★
-def clear_all_drugs_data(db_filepath='drug_data.db'):
+# RenderでSQLiteを使うためのパス設定
+DATABASE_DIR = '/var/data' if 'RENDER' in os.environ else '.' 
+DATABASE_FILE = os.path.join(DATABASE_DIR, 'drug_data.db')
+
+def clear_all_drugs_data(db_filepath=DATABASE_FILE): 
     conn = sqlite3.connect(db_filepath)
     cursor = conn.cursor()
     cursor.execute("DELETE FROM drugs")
     conn.commit()
     conn.close()
     print("既存の薬データを全て削除しました。")
-# ★★★ ここまで ★★★
 
-def import_drugs_from_csv(csv_filepath, db_filepath='drug_data.db'):
+def import_drugs_from_csv(csv_filepath, db_filepath=DATABASE_FILE): 
     conn = None
     try:
+        # Render環境の場合、永続ディレクトリを作成
+        if not os.path.exists(DATABASE_DIR):
+            os.makedirs(DATABASE_DIR)
+
         conn = sqlite3.connect(db_filepath)
         cursor = conn.cursor()
 
@@ -29,7 +36,7 @@ def import_drugs_from_csv(csv_filepath, db_filepath='drug_data.db'):
         placeholders = ', '.join(['?' for _ in columns])
         insert_query = f"INSERT INTO drugs ({', '.join(columns)}) VALUES ({placeholders})"
 
-        print(f"CSVファイル '{csv_filepath}' からデータをインポート中...")
+        print(f"CSVファイル '{csv_filepath}' からデータをインport中...")
 
         with open(csv_filepath, mode='r', encoding='utf-8') as file:
             csv_reader = csv.DictReader(file)
@@ -88,8 +95,8 @@ def import_drugs_from_csv(csv_filepath, db_filepath='drug_data.db'):
 
 if __name__ == "__main__":
     csv_file = 'drugs_data.csv' 
-    
-    # ★★★ ここに clear_all_drugs_data() の呼び出しを追加 ★★★
-    clear_all_drugs_data() 
+    # ローカルでの開発・テスト時には clear_all_drugs_data() を必要に応じて有効に
+    # Render環境で初期データを投入する場合は、RenderのShellやDeploy Hooksで直接実行
+    # clear_all_drugs_data() 
 
     import_drugs_from_csv(csv_file)

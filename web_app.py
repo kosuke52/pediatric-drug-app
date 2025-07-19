@@ -7,15 +7,15 @@ import os
 app = Flask(__name__)
 
 # --- データベース接続のヘルパー関数 ---
-# HerokuでPostgreSQLを使う場合、DATABASE_URL環境変数を参照するようにする
-# 環境変数がなければ、ローカル開発用にSQLiteをデフォルトにする
-# Herokuの永続ファイルシステムに保存するため、/app/data/ に db ファイルを置く
-DATABASE_DIR = '/app/data' if 'DYNO' in os.environ else '.' # Heroku環境なら /app/data, ローカルならカレントディレクトリ
+# Renderの永続ディスクのパスを設定 (Renderの仕様)
+# Renderでは '/var/data' が永続ディスクとして推奨されるパス
+DATABASE_DIR = '/var/data' if 'RENDER' in os.environ else '.' 
 DATABASE_FILE = os.path.join(DATABASE_DIR, 'drug_data.db')
 
 def get_db_connection():
-    # Heroku環境の場合、永続ディレクトリを作成
-    if 'DYNO' in os.environ and not os.path.exists(DATABASE_DIR):
+    # Render環境の場合、永続ディレクトリを作成
+    # ローカルではカレントディレクトリに作成される
+    if not os.path.exists(DATABASE_DIR):
         os.makedirs(DATABASE_DIR)
         
     conn = sqlite3.connect(DATABASE_FILE)
@@ -23,7 +23,7 @@ def get_db_connection():
     return conn
 
 # アプリケーション起動時にDBの初期設定（テーブル作成）を行う
-# Herokuで初回デプロイ時にDBが作成されるように
+# これにより、データベースファイルが存在しない場合にテーブルが自動作成される
 with app.app_context():
     conn = None
     try:
@@ -50,7 +50,7 @@ with app.app_context():
             )
         ''')
         conn.commit()
-        print("データベーステーブル 'drugs' が存在することを確認（または作成）しました。")
+        print(f"データベーステーブル 'drugs' が {DATABASE_FILE} に存在することを確認（または作成）しました。")
     except Exception as e:
         print(f"データベースの初期化中にエラーが発生しました: {e}")
     finally:
@@ -210,12 +210,16 @@ def search_all_drug_data_api():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    query = """
-        SELECT id, drug_name FROM drugs
-        WHERE drug_name LIKE ? OR aliases LIKE ?
-        ORDER BY drug_name
-    """
-    cursor.execute(query, (f'%{search_term}%', f'%{search_term}%'))
+    if search_term:
+        query = """
+            SELECT id, drug_name FROM drugs
+            WHERE drug_name LIKE ? OR aliases LIKE ?
+            ORDER BY drug_name
+        """
+        cursor.execute(query, (f'%{search_term}%', f'%{search_term}%'))
+    else:
+        query = "SELECT id, drug_name FROM drugs ORDER BY drug_name"
+        cursor.execute(query)
     
     results = cursor.fetchall()
     conn.close()
@@ -356,7 +360,5 @@ def delete_drug(drug_id):
         return jsonify({"error": f"薬の削除中にエラーが発生しました: {str(e)}"}), 500
 
 if __name__ == '__main__':
-    # HerokuでSQLiteを使うための調整: production環境では、drug_data.db が消えないように永続ディスクなどを考慮する必要がある
-    # ローカル開発では debug=True
-    is_production = os.environ.get('FLASK_ENV') == 'production' 
-    app.run(debug=not is_production) # 環境変数に応じて debug を切り替える
+    is_production = os.environ.get('FLASK_ENV') == 'production' or 'RENDER' in os.environ # Render環境も考慮
+    app.run(debug=not is_production)
