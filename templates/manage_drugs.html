@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>薬の管理</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f7f6;
+            color: #333;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 25px;
+        }
+        .section {
+            margin-bottom: 25px;
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            background-color: #fdfdfd;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input[type="text"],
+        input[type="number"],
+        select,
+        textarea {
+            width: calc(100% - 22px);
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        input[type="radio"] {
+            margin-right: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .drug-item {
+            padding: 8px 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+        }
+        .drug-item:last-child {
+            border-bottom: none;
+        }
+        .drug-item:hover {
+            background-color: #e9f5fd;
+        }
+        .drug-item.selected {
+            background-color: #cce7f8;
+            font-weight: bold;
+        }
+        .radio-group label {
+            display: inline-block;
+            margin-right: 15px;
+            font-weight: normal;
+        }
+        .error-message {
+            color: red;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .success-message {
+            color: green;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>薬の管理</h1>
+
+        <div class="section">
+            <h2>新規薬の追加 / 既存薬の編集</h2>
+            <form id="drug_management_form">
+                <input type="hidden" id="drug_id" name="id" value="">
+
+                <div class="form-group">
+                    <label for="drug_name">薬の品名 (必須):</label>
+                    <input type="text" id="drug_name" name="drug_name" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="aliases">別名・一般名 (カンマ区切り):</label>
+                    <input type="text" id="aliases" name="aliases">
+                </div>
+
+                <div class="form-group">
+                    <label for="type">薬の種類:</label>
+                    <select id="type" name="type">
+                        <option value="解熱鎮痛剤">解熱鎮痛剤</option>
+                        <option value="抗生剤">抗生剤</option>
+                        <option value="鎮咳薬">鎮咳薬</option>
+                        <option value="去痰薬">去痰薬</option>
+                        <option value="ステロイド">ステロイド</option>
+                        <option value="その他">その他</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="formulation_type">剤形 (例: 散, 顆粒, シロップ):</label>
+                    <input type="text" id="formulation_type" name="formulation_type">
+                </div>
+
+                <div class="form-group">
+                    <label for="calculated_dose_unit">表示単位 (例: g, ml, 枚, 本):</label>
+                    <input type="text" id="calculated_dose_unit" name="calculated_dose_unit" placeholder="例: g, ml, 枚, 本">
+                </div>
+
+                <div class="form-group">
+                    <label>使用区分:</label>
+                    <div class="radio-group">
+                        <label><input type="radio" name="usage_type" value="内服" checked> 内服</label>
+                        <label><input type="radio" name="usage_type" value="頓服"> 頓服</label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>用量計算の基準:</label>
+                    <div class="radio-group">
+                        <label><input type="radio" name="dosage_unit" value="kg" checked> 体重 (kg)</label>
+                        <label><input type="radio" name="dosage_unit" value="age"> 年齢 (月齢)</label>
+                        <label><input type="radio" name="dosage_unit" value="fixed"> 固定用量 (ml)</label>
+                    </div>
+                </div>
+
+                <div class="form-group" id="dose_per_kg_group">
+                    <label for="dose_per_kg">1kgあたりのグラム数 (例: 0.005):</label>
+                    <input type="number" id="dose_per_kg" name="dose_per_kg" step="0.001">
+                </div>
+
+                <div class="form-group" id="age_specific_group" style="display: none;">
+                    <label for="dose_age_specific">年齢ごとの用量 (JSON形式、月齢単位: {"0-12": 0.5, "13-36": 1.0}):</label>
+                    <textarea id="dose_age_specific" name="dose_age_specific" rows="4"></textarea>
+                    <p style="font-size: 0.9em; color: #777;">例: {"0-12": 0.5, "13-36": 1.0}</p>
+                </div>
+
+                <div class="form-group" id="fixed_dose_group" style="display: none;">
+                    <label for="fixed_dose">固定用量 (ml):</label>
+                    <input type="number" id="fixed_dose" name="fixed_dose" step="0.1">
+                </div>
+
+                <div class="form-group">
+                    <label for="daily_frequency">1日の投与回数候補 (カンマ区切り、例: 1,2,3):</label>
+                    <input type="text" id="daily_frequency" name="daily_frequency">
+                </div>
+
+                <div class="form-group">
+                    <label for="timing_options">服用タイミング候補 (カンマ区切り、例: 朝食後,昼食後,夕食後):</label>
+                    <input type="text" id="timing_options" name="timing_options">
+                </div>
+
+                <div class="form-group">
+                    <label for="notes">備考:</label>
+                    <textarea id="notes" name="notes" rows="3"></textarea>
+                </div>
+
+                <button type="submit">薬を追加/更新</button>
+                <button type="button" class="clear-button" onclick="clearForm()">フォームをクリア</button>
+            </form>
+            <div id="message" class="success-message"></div>
+        </div>
+
+        <div class="section">
+            <h2>既存薬の選択と削除</h2>
+            <div class="form-group">
+                <label for="edit_drug_search">編集・削除する薬を検索:</label>
+                <input type="text" id="edit_drug_search" placeholder="薬名を入力">
+                <button type="button" onclick="searchDrugsForEdit()">検索</button>
+            </div>
+            <h3>検索結果:</h3>
+            <div id="edit_drug_list" class="drug-list-container">
+                </div>
+            <button type="button" style="background-color: #e74c3c;" onclick="deleteSelectedDrug()">選択した薬を削除</button>
+        </div>
+    </div>
+
+    <script>
+        let currentSelectedDrugId = null; 
+
+        // 用量計算基準のラジオボタン変更時の表示切り替え (変更なし)
+        document.querySelectorAll('input[name="dosage_unit"]').forEach(radio => {
+            radio.addEventListener('change', (event) => {
+                const unit = event.target.value;
+                document.getElementById('dose_per_kg_group').style.display = 'none';
+                document.getElementById('age_specific_group').style.display = 'none';
+                document.getElementById('fixed_dose_group').style.display = 'none';
+
+                if (unit === 'kg') {
+                    document.getElementById('dose_per_kg_group').style.display = 'block';
+                } else if (unit === 'age') {
+                    document.getElementById('age_specific_group').style.display = 'block';
+                } else if (unit === 'fixed') {
+                    document.getElementById('fixed_dose_group').style.display = 'block';
+                }
+            });
+        });
+        document.querySelector('input[name="dosage_unit"]:checked').dispatchEvent(new Event('change'));
+
+
+        // 薬の追加/更新フォームの送信処理
+        document.getElementById('drug_management_form').addEventListener('submit', async (event) => {
+            event.preventDefault(); 
+
+            const form = event.target;
+            const formData = new FormData(form);
+            const data = {};
+            for (let [key, value] of formData.entries()) {
+                if (key === 'dose_age_specific') {
+                    try {
+                        data[key] = value ? JSON.parse(value) : null;
+                    } catch (e) {
+                        displayMessage('年齢ごとの用量データが不正なJSON形式です。', 'error');
+                        return;
+                    }
+                } else if (key === 'dose_per_kg' || key === 'fixed_dose') {
+                    data[key] = value ? parseFloat(value) : null;
+                } else if (key === 'id' && value === '') {
+                    continue; 
+                }
+                 else {
+                    data[key] = value || null; 
+                }
+            }
+            
+            data['usage_type'] = document.querySelector('input[name="usage_type"]:checked').value;
+
+
+            const drugId = document.getElementById('drug_id').value;
+            const method = drugId ? 'PUT' : 'POST'; 
+            const url = drugId ? `/drugs/${drugId}` : '/drugs';
+
+            try {
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    displayMessage(result.message, 'success');
+                    clearForm();
+                    searchDrugsForEdit(); 
+                } else {
+                    displayMessage(result.error || 'エラーが発生しました', 'error');
+                }
+            } catch (error) {
+                console.error('通信エラー:', error);
+                displayMessage('サーバーとの通信に失敗しました。', 'error');
+            }
+        });
+
+        // フォームをクリアする
+        function clearForm() {
+            document.getElementById('drug_management_form').reset();
+            document.getElementById('drug_id').value = '';
+            document.querySelector('input[name="dosage_unit"][value="kg"]').checked = true; 
+            document.querySelector('input[name="dosage_unit"]:checked').dispatchEvent(new Event('change')); 
+            document.querySelector('input[name="usage_type"][value="内服"]').checked = true; 
+            displayMessage(''); 
+            currentSelectedDrugId = null;
+        }
+
+        // メッセージを表示 (変更なし)
+        function displayMessage(msg, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = msg;
+            messageDiv.className = `message ${type}-message`; 
+        }
+
+        // 編集・削除用の薬名検索 (変更なし)
+        async function searchDrugsForEdit() {
+            const searchTerm = document.getElementById('edit_drug_search').value;
+            const response = await fetch(`/search_all_drug_data?q=${encodeURIComponent(searchTerm)}`);
+            const drugs = await response.json();
+            
+            const drugListDiv = document.getElementById('edit_drug_list');
+            drugListDiv.innerHTML = ''; 
+
+            if (drugs.length === 0) {
+                drugListDiv.innerHTML = '<p>該当する薬が見つかりませんでした。</p>';
+                return;
+            }
+
+            drugs.forEach(drug => {
+                const drugItem = document.createElement('div');
+                drugItem.classList.add('drug-item');
+                drugItem.textContent = drug.drug_name;
+                drugItem.onclick = () => loadDrugForEdit(drug.id);
+                drugListDiv.appendChild(drugItem);
+            });
+        }
+
+        // 編集のために薬の情報をフォームにロード
+        async function loadDrugForEdit(drugId) {
+            currentSelectedDrugId = drugId;
+            const response = await fetch(`/drugs/${drugId}`);
+            const drug = await response.json();
+
+            if (response.ok) {
+                document.getElementById('drug_id').value = drug.id;
+                document.getElementById('drug_name').value = drug.drug_name;
+                document.getElementById('aliases').value = drug.aliases || '';
+                document.getElementById('type').value = drug.type;
+                document.getElementById('formulation_type').value = drug.formulation_type || ''; 
+                document.getElementById('calculated_dose_unit').value = drug.calculated_dose_unit || ''; // 新しいフィールド
+                
+                document.querySelector(`input[name="usage_type"][value="${drug.usage_type || '内服'}"]`).checked = true;
+
+                document.querySelector(`input[name="dosage_unit"][value="${drug.dosage_unit}"]`).checked = true;
+                document.querySelector('input[name="dosage_unit"]:checked').dispatchEvent(new Event('change')); 
+
+                document.getElementById('dose_per_kg').value = drug.dose_per_kg || '';
+                document.getElementById('dose_age_specific').value = drug.dose_age_specific ? JSON.stringify(drug.dose_age_specific, null, 2) : '';
+                document.getElementById('fixed_dose').value = drug.fixed_dose || '';
+                document.getElementById('daily_frequency').value = drug.daily_frequency || '';
+                document.getElementById('timing_options').value = drug.timing_options || ''; 
+                document.getElementById('notes').value = drug.notes || '';
+
+                displayMessage('薬情報がフォームにロードされました。', 'info');
+            } else {
+                displayMessage('薬情報のロードに失敗しました。', 'error');
+            }
+        }
+
+        // 選択した薬を削除 (変更なし)
+        async function deleteSelectedDrug() {
+            if (!currentSelectedDrugId) {
+                alert('削除する薬を選択してください。');
+                return;
+            }
+
+            if (!confirm('本当にこの薬を削除しますか？')) {
+                return; 
+            }
+
+            try {
+                const response = await fetch(`/drugs/${currentSelectedDrugId}`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+                if (response.ok) {
+                    displayMessage(result.message, 'success');
+                    clearForm();
+                    searchDrugsForEdit(); 
+                } else {
+                    displayMessage(result.error || '削除に失敗しました。', 'error');
+                }
+            } catch (error) {
+                console.error('通信エラー:', error);
+                displayMessage('サーバーとの通信に失敗しました。', 'error');
+            }
+        }
+
+        // ページロード時に全薬を表示 (編集・削除用)
+        window.onload = searchDrugsForEdit;
+    </script>
+</body>
+</html>
