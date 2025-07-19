@@ -1,0 +1,17 @@
+# render.yaml
+services:
+  - type: web
+    name: pediatric-drug-app # Renderでデプロイしたいサービス名（例: あなたのアプリ名）
+    env: python
+    region: oregon # あなたの選択したリージョン (例: oregon, singapore)
+    branch: main   # あなたのデプロイするGitブランチ (main または master)
+    rootDir: .     # プロジェクトのルートディレクトリ
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn web_app:app
+    pullRequestPreviewsEnabled: false # 必要に応じて true に変更
+    autoDeploy: true # Git push で自動デプロイ
+    healthCheckPath: /
+    disk: # ★★★ ここが永続ディスクの設定 ★★★
+      name: drug-data-volume # ディスクの名前
+      mountPath: /var/data   # アプリケーション内のパス（web_app.pyで設定済み）
+      sizeGB: 1              # ディスクサイズ (無料枠またはStarterプランの最大)
