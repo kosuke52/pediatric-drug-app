@@ -32,7 +32,6 @@ with app.app_context():
         conn_obj, cursor_factory_class = get_db_connection()
         conn = conn_obj
 
-        # カーソル作成 (psycopg2の場合は cursor_factory を指定)
         if DATABASE_URL:
             cursor = conn.cursor(cursor_factory=cursor_factory_class)
         else:
@@ -45,20 +44,22 @@ with app.app_context():
                 aliases TEXT,
                 type TEXT,
                 dosage_unit TEXT NOT NULL,
-                dose_per_kg REAL, -- 古いカラム
+                dose_per_kg REAL,
                 min_age_months INTEGER,
                 max_age_months INTEGER,
-                dose_age_specific TEXT, -- 古いカラム
-                fixed_dose REAL, -- 古いカラム
-                daily_dose_per_kg REAL, -- 新しいカラム
-                daily_fixed_dose REAL, -- 新しいカラム
-                daily_dose_age_specific TEXT, -- 新しいカラム
+                dose_age_specific TEXT,
+                fixed_dose REAL,
+                daily_dose_per_kg REAL,
+                daily_fixed_dose REAL,
+                daily_dose_age_specific TEXT,
                 daily_frequency TEXT, 
                 notes TEXT,
                 usage_type TEXT DEFAULT '内服',
                 timing_options TEXT,
                 formulation_type TEXT,
-                calculated_dose_unit TEXT
+                calculated_dose_unit TEXT,
+                max_daily_dose_per_kg REAL, -- 新しいカラム
+                max_daily_fixed_dose REAL -- 新しいカラム
             );
         '''
         cursor.execute(create_table_sql)
@@ -86,21 +87,16 @@ def search_drugs_api():
     conn = conn_obj
     cursor = conn.cursor(cursor_factory=cursor_factory_class) if DATABASE_URL else conn.cursor()
     
-    # ★★★ 検索結果を5個に制限 ★★★
     limit = 5 
     
     query_placeholder = '%s' if DATABASE_URL else '?'
 
-    # 部分一致検索
     query = f"""
         SELECT drug_name FROM drugs
         WHERE drug_name ILIKE {query_placeholder} OR aliases ILIKE {query_placeholder}
         ORDER BY drug_name
         LIMIT {limit}
     """
-    # PostgreSQLでは ILIKE で大文字小文字を無視した検索
-    # SQLiteでは LIKE で大文字小文字を無視するため、そのまま
-
     cursor.execute(query, (f'%{search_term}%', f'%{search_term}%'))
     
     results = cursor.fetchall()
@@ -114,7 +110,6 @@ def search_by_type_api():
     conn = conn_obj
     cursor = conn.cursor(cursor_factory=cursor_factory_class) if DATABASE_URL else conn.cursor()
     
-    # ★★★ 検索結果を5個に制限 ★★★
     limit = 5
 
     query_base = "SELECT drug_name FROM drugs WHERE type = %s ORDER BY drug_name LIMIT %s"
@@ -124,9 +119,7 @@ def search_by_type_api():
     if selected_type:
         cursor.execute(query_base, (selected_type, limit))
     else: 
-        # 全件表示はしない（検索結果を制限するため、ここは使用されない）
-        # もし全件表示が必要なら、limitを考慮しないクエリにするか、別のAPIを用意
-        return jsonify([]) # タイプ検索で空のタイプが選択されたら何も返さない
+        return jsonify([]) 
 
     results = cursor.fetchall()
     conn.close()
@@ -137,7 +130,7 @@ def calculate_dosage_api():
     data = request.get_json()
     drug_name = data.get('drug_name')
     patient_weight_str = data.get('weight')
-    patient_age_years_str = data.get('age_years') # 年齢は必須になる
+    patient_age_years_str = data.get('age_years') 
 
     try:
         patient_weight = float(patient_weight_str) if patient_weight_str else 0.0
@@ -146,16 +139,14 @@ def calculate_dosage_api():
     except ValueError:
         return jsonify({"error": "患者体重は数値で入力してください。", "drug_data": None}), 400
 
-    # ★★★ 年齢を必須にするバリデーション ★★★
     patient_age_months = None
-    if not patient_age_years_str or int(patient_age_years_str) < 0:
+    if not patient_age_years_str or int(patient_age_years_str) < 0: # 年齢必須化
         return jsonify({"error": "患者年齢は必須です。正しく入力してください。", "drug_data": None}), 400
     try:
         patient_age_years = int(patient_age_years_str)
         patient_age_months = patient_age_years * 12
     except ValueError:
         return jsonify({"error": "患者年齢は数値で入力してください。", "drug_data": None}), 400
-    # ★★★ ここまで年齢必須バリデーション ★★★
 
 
     conn_obj, cursor_factory_class = get_db_connection()
@@ -202,7 +193,7 @@ def calculate_dosage_api():
             age_doses = json.loads(drug_info['daily_dose_age_specific'])
             for age_range_str, dose in age_doses.items():
                 min_age_db, max_age_db = map(int, age_range_str.split('-'))
-                if min_age_db <= patient_age_months <= max_age_db: # patient_age_months は必須になっている
+                if min_age_db <= patient_age_months <= max_age_db:
                     calculated_daily_dose_value = dose
                     break
             if calculated_daily_dose_value is None:
@@ -216,6 +207,23 @@ def calculate_dosage_api():
             return jsonify({"error": f"{drug_name} は固定用量ですが、1日総量データが設定されていません。", "drug_data": None}), 400
     else:
         return jsonify({"error": f"{drug_name} の用量計算の基準が不明です。", "drug_data": None}), 400
+
+    # ★★★ 1日最大量バリデーションの追加 ★★★
+    if calculated_daily_dose_value is not None:
+        max_daily_dose_per_kg = drug_info['max_daily_dose_per_kg']
+        max_daily_fixed_dose = drug_info['max_daily_fixed_dose']
+
+        # 体重あたりの最大量チェック
+        if max_daily_dose_per_kg is not None:
+            calculated_max_dose_per_kg = patient_weight * max_daily_dose_per_kg
+            if calculated_daily_dose_value > calculated_max_dose_per_kg:
+                return jsonify({"error": f"{drug_name} の1日総量 ({calculated_daily_dose_value:.3f}) は、体重あたりの1日最大量 ({calculated_max_dose_per_kg:.3f}) を超えています。", "drug_data": None}), 400
+        
+        # 固定の1日最大量チェック
+        if max_daily_fixed_dose is not None:
+            if calculated_daily_dose_value > max_daily_fixed_dose:
+                return jsonify({"error": f"{drug_name} の1日総量 ({calculated_daily_dose_value:.3f}) は、固定の1日最大量 ({max_daily_fixed_dose:.3f}) を超えています。", "drug_data": None}), 400
+    # ★★★ ここまで1日最大量バリデーションの追加 ★★★
 
     if drug_info['calculated_dose_unit']:
         final_dose_unit = drug_info['calculated_dose_unit']
@@ -249,7 +257,6 @@ def search_all_drug_data_api():
     
     query_placeholder = '%s' if DATABASE_URL else '?'
     
-    # 管理画面の検索結果も制限するならここに LIMIT を追加
     query = f"""
         SELECT id, drug_name FROM drugs
         WHERE drug_name ILIKE {query_placeholder} OR aliases ILIKE {query_placeholder}
@@ -310,7 +317,8 @@ def add_drug():
             'dose_age_specific', 'fixed_dose', 
             'daily_dose_per_kg', 'daily_fixed_dose', 'daily_dose_age_specific', 
             'daily_frequency', 'notes', 'usage_type', 'timing_options', 'formulation_type',
-            'calculated_dose_unit'
+            'calculated_dose_unit',
+            'max_daily_dose_per_kg', 'max_daily_fixed_dose' # 新しいカラム
         ]
         insert_placeholders = ', '.join(['%s'] * len(insert_columns)) if DATABASE_URL else ', '.join(['?'] * len(insert_columns))
         
@@ -368,7 +376,8 @@ def update_drug(drug_id):
             dose_age_specific = %s, fixed_dose = %s, 
             daily_dose_per_kg = %s, daily_fixed_dose = %s, daily_dose_age_specific = %s,
             daily_frequency = %s, notes = %s,
-            usage_type = %s, timing_options = %s, formulation_type = %s, calculated_dose_unit = %s
+            usage_type = %s, timing_options = %s, formulation_type = %s, calculated_dose_unit = %s,
+            max_daily_dose_per_kg = %s, max_daily_fixed_dose = %s -- 新しいカラム
         '''
         if not DATABASE_URL: # SQLiteの場合
             update_set_clause = update_set_clause.replace('%s', '?')
@@ -391,7 +400,9 @@ def update_drug(drug_id):
             data.get('usage_type', '内服'),
             data.get('timing_options'),
             data.get('formulation_type'),
-            data.get('calculated_dose_unit')
+            data.get('calculated_dose_unit'),
+            data.get('max_daily_dose_per_kg'), # 新しいカラム
+            data.get('max_daily_fixed_dose') # 新しいカラム
         )
         
         where_placeholder = '%s' if DATABASE_URL else '?'

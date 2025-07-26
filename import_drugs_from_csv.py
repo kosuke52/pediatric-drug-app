@@ -46,13 +46,12 @@ def import_drugs_from_csv(csv_filepath_or_data):
 
         columns = [
             'drug_name', 'aliases', 'type', 'dosage_unit',
-            # 古い用量カラムは読み込まない（またはNoneとして処理）
             'dose_per_kg', 'min_age_months', 'max_age_months',
             'dose_age_specific', 'fixed_dose', 
-            # 新しい用量カラム
-            'daily_dose_per_kg', 'daily_fixed_dose', 'daily_dose_age_specific',
+            'daily_dose_per_kg', 'daily_fixed_dose', 'daily_dose_age_specific', 
             'daily_frequency', 'notes', 'usage_type', 'timing_options', 'formulation_type',
-            'calculated_dose_unit'
+            'calculated_dose_unit',
+            'max_daily_dose_per_kg', 'max_daily_fixed_dose' # 新しく追加したカラム
         ]
 
         insert_placeholders = ', '.join(['%s'] * len(columns)) if DATABASE_URL else ', '.join(['?'] * len(columns))
@@ -79,7 +78,6 @@ def import_drugs_from_csv(csv_filepath_or_data):
                         print(f"警告: 行 {row_num} で '{col}' のJSON形式が不正です: {value}")
                         value = None
                 
-                # daily_dose_age_specific もJSONとして扱う
                 if col == 'daily_dose_age_specific' and value:
                     try:
                         value = json.dumps(json.loads(value))
@@ -87,9 +85,10 @@ def import_drugs_from_csv(csv_filepath_or_data):
                         print(f"警告: 行 {row_num} で '{col}' のJSON形式が不正です: {value}")
                         value = None
 
-                # 数値型カラムの処理
+                # 数値型カラムの処理 (新しい最大量カラムも追加)
                 if col in ['dose_per_kg', 'min_age_months', 'max_age_months', 'fixed_dose',
-                            'daily_dose_per_kg', 'daily_fixed_dose']: # 新しい数値カラムも追加
+                            'daily_dose_per_kg', 'daily_fixed_dose', 
+                            'max_daily_dose_per_kg', 'max_daily_fixed_dose']: # ★変更ここ★
                     if value == '':
                         value = None
                     elif value is not None:
@@ -131,16 +130,10 @@ if __name__ == "__main__":
     # このスクリプトは Render の Web Service デプロイ後に、Render の Shell から実行することを想定
     # clear_all_drugs_data() 
 
-    # ★★★ ここを有効にしてローカルのCSVからインポートしたい場合は以下のようにする ★★★
-    # clear_all_drugs_data() 
-    # import_drugs_from_csv(csv_file)
-    # ★★★ ここまで ★★★
-
     if os.environ.get('DATABASE_URL'):
         print("このスクリプトはRenderのシェルからは、直接CSVファイルパス指定で実行できません。")
         print("Renderのシェルで実行するには、Python -c コマンドを使ってデータをリストで渡してください。")
     else:
         print(f"ローカルのSQLiteデータベース '{DATABASE_FILE_SQLITE}' にインポートします。")
-        # デフォルトでローカルで動作するよう
         clear_all_drugs_data()
         import_drugs_from_csv(csv_file)
