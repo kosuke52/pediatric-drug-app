@@ -2,55 +2,58 @@ from flask import Flask, render_template, request, jsonify
 import sqlite3
 import json
 import os 
+import psycopg2 
 
-# Flaskアプリケーションのインスタンスを作成
 app = Flask(__name__)
 
-# --- データベース接続のヘルパー関数 ---
-# Renderの永続ディスクのパスを設定 (Renderの仕様)
-# Renderでは '/var/data' が永続ディスクとして推奨されるパス
-DATABASE_DIR = '/var/data' if 'RENDER' in os.environ else '.' 
-DATABASE_FILE = os.path.join(DATABASE_DIR, 'drug_data.db')
+DATABASE_URL = os.environ.get('DATABASE_URL')
 
 def get_db_connection():
-    # Render環境の場合、永続ディレクトリを作成
-    # ローカルではカレントディレクトリに作成される
-    if not os.path.exists(DATABASE_DIR):
-        os.makedirs(DATABASE_DIR)
+    if DATABASE_URL:
+        conn = psycopg2.connect(DATABASE_URL)
+    else:
+        DATABASE_DIR = '.' 
+        if not os.path.exists(DATABASE_DIR):
+            os.makedirs(DATABASE_DIR)
+        DATABASE_FILE = os.path.join(DATABASE_DIR, 'drug_data.db')
+        conn = sqlite3.connect(DATABASE_FILE)
         
-    conn = sqlite3.connect(DATABASE_FILE)
     conn.row_factory = sqlite3.Row 
     return conn
 
 # アプリケーション起動時にDBの初期設定（テーブル作成）を行う
-# これにより、データベースファイルが存在しない場合にテーブルが自動作成される
 with app.app_context():
     conn = None
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute('''
+        
+        create_table_sql = '''
             CREATE TABLE IF NOT EXISTS drugs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY, 
                 drug_name TEXT NOT NULL UNIQUE,
                 aliases TEXT,
                 type TEXT,
                 dosage_unit TEXT NOT NULL,
-                dose_per_kg REAL,
+                dose_per_kg REAL, -- 古いカラム
                 min_age_months INTEGER,
                 max_age_months INTEGER,
-                dose_age_specific TEXT,
-                fixed_dose REAL,
-                daily_frequency TEXT,
+                dose_age_specific TEXT, -- 古いカラム
+                fixed_dose REAL, -- 古いカラム
+                daily_dose_per_kg REAL, -- 新しいカラム
+                daily_fixed_dose REAL, -- 新しいカラム
+                daily_dose_age_specific TEXT, -- 新しいカラム
+                daily_frequency TEXT, 
                 notes TEXT,
                 usage_type TEXT DEFAULT '内服',
                 timing_options TEXT,
                 formulation_type TEXT,
                 calculated_dose_unit TEXT
-            )
-        ''')
+            );
+        '''
+        cursor.execute(create_table_sql)
         conn.commit()
-        print(f"データベーステーブル 'drugs' が {DATABASE_FILE} に存在することを確認（または作成）しました。")
+        print("データベーステーブル 'drugs' が存在することを確認（または作成）しました。")
     except Exception as e:
         print(f"データベースの初期化中にエラーが発生しました: {e}")
     finally:
@@ -58,7 +61,6 @@ with app.app_context():
             conn.close()
 
 
-# --- ルート（URLと関数のマッピング）の定義 ---
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -75,9 +77,12 @@ def search_drugs_api():
     
     query = """
         SELECT drug_name FROM drugs
-        WHERE drug_name LIKE ? OR aliases LIKE ?
+        WHERE drug_name LIKE %s OR aliases LIKE %s
         ORDER BY drug_name
     """
+    query_placeholder = '%s' if DATABASE_URL else '?'
+    query = query.replace('%s', query_placeholder)
+    
     cursor.execute(query, (f'%{search_term}%', f'%{search_term}%'))
     
     results = cursor.fetchall()
@@ -90,12 +95,15 @@ def search_by_type_api():
     conn = get_db_connection()
     cursor = conn.cursor()
     
+    query_base = "SELECT drug_name FROM drugs WHERE type = %s ORDER BY drug_name"
+    if not DATABASE_URL: # SQLiteの場合
+        query_base = query_base.replace('%s', '?')
+
     if selected_type:
-        query = "SELECT drug_name FROM drugs WHERE type = ? ORDER BY drug_name"
-        cursor.execute(query, (selected_type,))
+        cursor.execute(query_base, (selected_type,))
     else: 
-        query = "SELECT drug_name FROM drugs ORDER BY drug_name"
-        cursor.execute(query)
+        query_all = "SELECT drug_name FROM drugs ORDER BY drug_name"
+        cursor.execute(query_all)
     
     results = cursor.fetchall()
     conn.close()
@@ -126,7 +134,9 @@ def calculate_dosage_api():
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM drugs WHERE drug_name = ?", (drug_name,))
+    
+    query_placeholder = '%s' if DATABASE_URL else '?'
+    cursor.execute(f"SELECT * FROM drugs WHERE drug_name = {query_placeholder}", (drug_name,))
     drug_info = cursor.fetchone()
     conn.close()
 
@@ -150,36 +160,38 @@ def calculate_dosage_api():
             return jsonify({"error": f"{drug_name} は {max_age_years_display}を超える患者には推奨されません。", "drug_data": None}), 400
 
 
-    calculated_single_dose_value = None
+    calculated_daily_dose_value = None # 新しく、計算された1日総量
     final_dose_unit = "" 
-
+    
+    # ★★★ ここから計算ロジックの変更 ★★★
     if drug_info['dosage_unit'] == 'kg':
-        if drug_info['dose_per_kg'] is not None:
-            calculated_single_dose_value = patient_weight * drug_info['dose_per_kg']
+        if drug_info['daily_dose_per_kg'] is not None: # daily_dose_per_kg を参照
+            calculated_daily_dose_value = patient_weight * drug_info['daily_dose_per_kg']
         else:
-            return jsonify({"error": f"{drug_name} は体重基準ですが、1kgあたりの用量データが設定されていません。", "drug_data": None}), 400
+            return jsonify({"error": f"{drug_name} は体重基準ですが、1日あたりの用量データが設定されていません。", "drug_data": None}), 400
     elif drug_info['dosage_unit'] == 'age':
         if patient_age_months is None or patient_age_months < 0: 
              return jsonify({"error": f"{drug_name} は年齢基準の薬です。患者年齢を入力してください。", "drug_data": None}), 400
 
-        if drug_info['dose_age_specific']:
-            age_doses = json.loads(drug_info['dose_age_specific'])
+        if drug_info['daily_dose_age_specific']: # daily_dose_age_specific を参照
+            age_doses = json.loads(drug_info['daily_dose_age_specific'])
             for age_range_str, dose in age_doses.items():
                 min_age_db, max_age_db = map(int, age_range_str.split('-'))
                 if min_age_db <= patient_age_months <= max_age_db:
-                    calculated_single_dose_value = dose
+                    calculated_daily_dose_value = dose
                     break
-            if calculated_single_dose_value is None:
-                return jsonify({"error": f"{drug_name} は年齢基準ですが、入力された年齢 ({patient_age_years}歳) に該当する用量が見つかりません。", "drug_data": None}), 400
+            if calculated_daily_dose_value is None:
+                return jsonify({"error": f"{drug_name} は年齢基準ですが、入力された年齢 ({patient_age_years}歳) に該当する1日用量が見つかりません。", "drug_data": None}), 400
         else:
-            return jsonify({"error": f"{drug_name} は年齢基準ですが、用量データが設定されていません。", "drug_data": None}), 400
+            return jsonify({"error": f"{drug_name} は年齢基準ですが、1日用量データが設定されていません。", "drug_data": None}), 400
     elif drug_info['dosage_unit'] == 'fixed':
-        if drug_info['fixed_dose'] is not None:
-            calculated_single_dose_value = drug_info['fixed_dose']
+        if drug_info['daily_fixed_dose'] is not None: # daily_fixed_dose を参照
+            calculated_daily_dose_value = drug_info['daily_fixed_dose']
         else:
-            return jsonify({"error": f"{drug_name} は固定用量ですが、データが設定されていません。", "drug_data": None}), 400
+            return jsonify({"error": f"{drug_name} は固定用量ですが、1日総量データが設定されていません。", "drug_data": None}), 400
     else:
         return jsonify({"error": f"{drug_name} の用量計算の基準が不明です。", "drug_data": None}), 400
+    # ★★★ ここまで計算ロジックの変更 ★★★
 
     if drug_info['calculated_dose_unit']:
         final_dose_unit = drug_info['calculated_dose_unit']
@@ -190,7 +202,7 @@ def calculate_dosage_api():
 
     response_data = {
         "drug_name": drug_info['drug_name'],
-        "calculated_single_dose_value": calculated_single_dose_value,
+        "calculated_daily_dose_value": calculated_daily_dose_value, # 1日総量を渡す
         "dose_unit": final_dose_unit,
         "formulation_type": drug_info['formulation_type'] if drug_info['formulation_type'] else "",
         "notes": drug_info['notes'] if drug_info['notes'] else "",
@@ -203,23 +215,22 @@ def calculate_dosage_api():
     return jsonify(response_data)
 
 
-# --- 薬の管理用API (変更なし) ---
+# --- 薬の管理用API ---
 @app.route('/search_all_drug_data')
 def search_all_drug_data_api():
     search_term = request.args.get('q', '').strip()
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    if search_term:
-        query = """
-            SELECT id, drug_name FROM drugs
-            WHERE drug_name LIKE ? OR aliases LIKE ?
-            ORDER BY drug_name
-        """
-        cursor.execute(query, (f'%{search_term}%', f'%{search_term}%'))
-    else:
-        query = "SELECT id, drug_name FROM drugs ORDER BY drug_name"
-        cursor.execute(query)
+    query = """
+        SELECT id, drug_name FROM drugs
+        WHERE drug_name LIKE %s OR aliases LIKE %s
+        ORDER BY drug_name
+    """
+    query_placeholder = '%s' if DATABASE_URL else '?'
+    query = query.replace('%s', query_placeholder)
+    
+    cursor.execute(query, (f'%{search_term}%', f'%{search_term}%'))
     
     results = cursor.fetchall()
     conn.close()
@@ -229,18 +240,28 @@ def search_all_drug_data_api():
 def get_drug_by_id(drug_id):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM drugs WHERE id = ?", (drug_id,))
+    
+    query_placeholder = '%s' if DATABASE_URL else '?'
+    cursor.execute(f"SELECT * FROM drugs WHERE id = {query_placeholder}", (drug_id,))
+    
     drug = cursor.fetchone()
     conn.close()
 
     if drug:
         drug_dict = dict(drug)
+        # 新しいJSONカラムも考慮
         if drug_dict['dose_age_specific']:
             try:
                 drug_dict['dose_age_specific'] = json.loads(drug_dict['dose_age_specific'])
             except json.JSONDecodeError:
                 drug_dict['dose_age_specific'] = {} 
                 print(f"警告: データベースID {drug_id} の 'dose_age_specific' が不正なJSON形式です。")
+        if drug_dict['daily_dose_age_specific']: # 新しいJSONカラム
+            try:
+                drug_dict['daily_dose_age_specific'] = json.loads(drug_dict['daily_dose_age_specific'])
+            except json.JSONDecodeError:
+                drug_dict['daily_dose_age_specific'] = {} 
+                print(f"警告: データベースID {drug_id} の 'daily_dose_age_specific' が不正なJSON形式です。")
         
         return jsonify(drug_dict)
     return jsonify({"error": "Drug not found"}), 404
@@ -257,23 +278,32 @@ def add_drug():
         return jsonify({"error": "薬の品名は必須です。"}), 400
 
     try:
-        cursor.execute('''
-            INSERT INTO drugs (
-                drug_name, aliases, type, dosage_unit,
-                dose_per_kg, min_age_months, max_age_months,
-                dose_age_specific, fixed_dose, daily_frequency, notes,
-                usage_type, timing_options, formulation_type, calculated_dose_unit
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
+        # PostgreSQLのプレースホルダ %s, SQLiteは ?
+        insert_columns = [
+            'drug_name', 'aliases', 'type', 'dosage_unit',
+            'dose_per_kg', 'min_age_months', 'max_age_months',
+            'dose_age_specific', 'fixed_dose', 
+            'daily_dose_per_kg', 'daily_fixed_dose', 'daily_dose_age_specific', # 新しいカラム
+            'daily_frequency', 'notes', 'usage_type', 'timing_options', 'formulation_type',
+            'calculated_dose_unit'
+        ]
+        insert_placeholders = ', '.join(['%s'] * len(insert_columns)) if DATABASE_URL else ', '.join(['?'] * len(insert_columns))
+        
+        insert_query = f"INSERT INTO drugs ({', '.join(insert_columns)}) VALUES ({insert_placeholders})"
+
+        cursor.execute(insert_query, (
             drug_name,
             data.get('aliases'),
             data.get('type'),
             data.get('dosage_unit'),
-            data.get('dose_per_kg'),
+            data.get('dose_per_kg'), # 古いカラム
             data.get('min_age_months'),
             data.get('max_age_months'),
-            json.dumps(data.get('dose_age_specific')) if data.get('dose_age_specific') else None,
-            data.get('fixed_dose'),
+            json.dumps(data.get('dose_age_specific')) if data.get('dose_age_specific') else None, # 古いカラム
+            data.get('fixed_dose'), # 古いカラム
+            data.get('daily_dose_per_kg'), # 新しいカラム
+            data.get('daily_fixed_dose'), # 新しいカラム
+            json.dumps(data.get('daily_dose_age_specific')) if data.get('daily_dose_age_specific') else None, # 新しいカラム
             data.get('daily_frequency'),
             data.get('notes'),
             data.get('usage_type', '内服'),
@@ -284,7 +314,7 @@ def add_drug():
         conn.commit()
         conn.close()
         return jsonify({"message": f"'{drug_name}' を追加しました。", "id": cursor.lastrowid}), 201
-    except sqlite3.IntegrityError:
+    except sqlite3.IntegrityError: 
         conn.close()
         return jsonify({"error": f"'{drug_name}' は既に存在します。"}), 409
     except Exception as e:
@@ -303,23 +333,38 @@ def update_drug(drug_id):
         return jsonify({"error": "薬の品名は必須です。"}), 400
 
     try:
-        cursor.execute('''
+        update_set_clause = '''
+            drug_name = %s, aliases = %s, type = %s, dosage_unit = %s,
+            dose_per_kg = %s, min_age_months = %s, max_age_months = %s,
+            dose_age_specific = %s, fixed_dose = %s, 
+            daily_dose_per_kg = %s, daily_fixed_dose = %s, daily_dose_age_specific = %s,
+            daily_frequency = %s, notes = %s,
+            usage_type = %s, timing_options = %s, formulation_type = %s, calculated_dose_unit = %s
+        '''
+        if not DATABASE_URL: # SQLiteの場合
+            update_set_clause = update_set_clause.replace('%s', '?')
+
+        cursor.execute(f'''
             UPDATE drugs SET
-                drug_name = ?, aliases = ?, type = ?, dosage_unit = ?,
-                dose_per_kg = ?, min_age_months = ?, max_age_months = ?,
-                dose_age_specific = ?, fixed_dose = ?, daily_frequency = ?, notes = ?,
-                usage_type = ?, timing_options = ?, formulation_type = ?, calculated_dose_unit = ?
+                {update_set_clause}
+            WHERE id = %s
+        ''' if DATABASE_URL else f'''
+            UPDATE drugs SET
+                {update_set_clause}
             WHERE id = ?
-        ''', (
+        ''', ( 
             drug_name,
             data.get('aliases'),
             data.get('type'),
             data.get('dosage_unit'),
-            data.get('dose_per_kg'),
+            data.get('dose_per_kg'), # 古いカラム
             data.get('min_age_months'),
             data.get('max_age_months'),
-            json.dumps(data.get('dose_age_specific')) if data.get('dose_age_specific') else None,
-            data.get('fixed_dose'),
+            json.dumps(data.get('dose_age_specific')) if data.get('dose_age_specific') else None, # 古いカラム
+            data.get('fixed_dose'), # 古いカラム
+            data.get('daily_dose_per_kg'), # 新しいカラム
+            data.get('daily_fixed_dose'), # 新しいカラム
+            json.dumps(data.get('daily_dose_age_specific')) if data.get('daily_dose_age_specific') else None, # 新しいカラム
             data.get('daily_frequency'),
             data.get('notes'),
             data.get('usage_type', '内服'),
@@ -336,7 +381,7 @@ def update_drug(drug_id):
         
         conn.close()
         return jsonify({"message": f"'{drug_name}' を更新しました。"}), 200
-    except sqlite3.IntegrityError:
+    except sqlite3.IntegrityError: 
         conn.close()
         return jsonify({"error": f"'{drug_name}' という薬名が既に存在します。"}), 409
     except Exception as e:
@@ -348,7 +393,8 @@ def delete_drug(drug_id):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("DELETE FROM drugs WHERE id = ?", (drug_id,))
+        query_placeholder = '%s' if DATABASE_URL else '?'
+        cursor.execute(f"DELETE FROM drugs WHERE id = {query_placeholder}", (drug_id,))
         conn.commit()
         if cursor.rowcount == 0:
             conn.close()
@@ -360,5 +406,5 @@ def delete_drug(drug_id):
         return jsonify({"error": f"薬の削除中にエラーが発生しました: {str(e)}"}), 500
 
 if __name__ == '__main__':
-    is_production = os.environ.get('FLASK_ENV') == 'production' or 'RENDER' in os.environ # Render環境も考慮
+    is_production = os.environ.get('FLASK_ENV') == 'production' or 'RENDER' in os.environ 
     app.run(debug=not is_production)
