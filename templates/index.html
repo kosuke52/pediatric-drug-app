@@ -7,29 +7,41 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            margin: 20px;
+            margin: 0; /* マージンをリセット */
             background-color: #f4f7f6;
             color: #333;
+            display: flex; /* flexbox を使用 */
+            justify-content: center; /* 中央寄せ */
+            align-items: flex-start; /* 上揃え */
+            min-height: 100vh; /* 画面いっぱいの高さ */
+            padding: 20px; /* 全体のパディング */
+            box-sizing: border-box; /* パディングを幅に含める */
         }
         .container {
-            max-width: 900px;
-            margin: 0 auto;
+            max-width: 1000px; /* コンテナの最大幅を広げる */
+            width: 100%; /* 幅を100%に */
             background-color: #fff;
             padding: 25px;
             border-radius: 8px;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            display: grid; /* グリッドレイアウトに変更 */
+            grid-template-columns: 1fr 1fr; /* 2カラムレイアウト */
+            gap: 20px; /* カラム間の隙間 */
         }
         h1 {
+            grid-column: 1 / -1; /* グリッドの全幅を使用 */
             color: #2c3e50;
             text-align: center;
             margin-bottom: 25px;
         }
         .section {
-            margin-bottom: 25px;
             padding: 15px;
             border: 1px solid #e0e0e0;
             border-radius: 6px;
             background-color: #fdfdfd;
+        }
+        .section.full-width { /* 全幅のセクション用 */
+            grid-column: 1 / -1;
         }
         .form-group {
             margin-bottom: 15px;
@@ -47,6 +59,7 @@
             border: 1px solid #ccc;
             border-radius: 4px;
             font-size: 16px;
+            box-sizing: border-box; /* パディングを幅に含める */
         }
         select { 
             width: calc(100% - 22px); 
@@ -55,6 +68,7 @@
             border-radius: 4px;
             font-size: 16px;
             min-width: 150px; 
+            box-sizing: border-box; /* パディングを幅に含める */
         }
         button {
             padding: 10px 20px;
@@ -65,12 +79,13 @@
             cursor: pointer;
             font-size: 16px;
             transition: background-color 0.3s ease;
+            margin-top: 10px; /* ボタンの上に少しスペース */
         }
         button:hover {
             background-color: #2980b9;
         }
         .drug-list-container {
-            max-height: 200px; 
+            max-height: 160px; /* 検索結果の高さを調整 */
             overflow-y: auto; 
             border: 1px solid #ccc;
             border-radius: 4px;
@@ -86,104 +101,124 @@
             border-bottom: none;
         }
         .drug-item:hover {
-                background-color: #e9f5fd;
-            }
-            .drug-item.selected {
-                background-color: #cce7f8;
-                font-weight: bold;
-            }
-            pre {
-                background-color: #eef;
-                padding: 15px;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                white-space: pre-wrap; 
-                word-break: break-all; 
-            }
-            .copy-button {
-                margin-top: 10px;
-                float: right; 
-            }
-            .clear-button {
-                background-color: #e74c3c;
-            }
-            .clear-button:hover {
-                background-color: #c0392b;
-            }
-            .radio-group label {
-                display: inline-block;
-                margin-right: 15px;
-                font-weight: normal;
-            }
-            .select-group {
-                margin-bottom: 15px; 
-            }
-            .patient-info-row {
-                display: flex;
-                gap: 20px; 
-                align-items: flex-start; 
-                flex-wrap: wrap; 
-            }
-            .patient-info-item {
-                flex: 1; 
-                min-width: 200px; 
-            }
-            .patient-info-item .form-group {
-                margin-bottom: 0; 
-            }
+            background-color: #e9f5fd;
+        }
+        .drug-item.selected {
+            background-color: #cce7f8;
+            font-weight: bold;
+        }
+        pre {
+            background-color: #eef;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            white-space: pre-wrap; 
+            word-break: break-all; 
+            min-height: 120px; /* 結果表示エリアの最小高さを確保 */
+        }
+        .copy-button {
+            margin-top: 10px;
+            float: right; 
+        }
+        .clear-button {
+            background-color: #e74c3c;
+        }
+        .clear-button:hover {
+            background-color: #c0392b;
+        }
+        .radio-group label {
+            display: inline-block;
+            margin-right: 15px;
+            font-weight: normal;
+        }
+        .patient-info-row {
+            display: flex;
+            gap: 20px; 
+            align-items: flex-start; 
+            flex-wrap: wrap; 
+        }
+        .patient-info-item {
+            flex: 1; 
+            min-width: 180px; /* アイテムの最小幅を調整 */
+        }
+        .patient-info-item .form-group {
+            margin-bottom: 0; 
+        }
+        /* 新しい単位表示と回数・タイミングの配置用スタイル */
+        .output-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 15px;
+            align-items: flex-end;
+        }
+        .output-controls .form-group {
+            margin-bottom: 0;
+            flex-grow: 1;
+            min-width: 150px;
+        }
+        .output-controls .radio-group,
+        .output-controls .select-group {
+            margin-bottom: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>小児薬 用法用量検索ツール</h1>
 
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>小児薬 用法用量検索ツール</h1>
-
-            <div class="section">
-                <h2>薬の検索</h2>
-                <div class="form-group">
-                    <label for="drug_name_search">薬名検索:</label>
-                    <input type="text" id="drug_name_search" name="drug_name_search" placeholder="薬名または一般名を入力">
-                    <button type="button" onclick="searchDrugs()">検索</button>
-                </div>
-                <div class="form-group">
-                    <label for="drug_type_select">薬の種類:</label>
-                    <select id="drug_type_select" name="drug_type_select" onchange="searchByType()">
-                        <option value="">全て表示</option>
-                        <option value="解熱鎮痛剤">解熱鎮痛剤</option>
-                        <option value="抗生剤">抗生剤</option>
-                        <option value="鎮咳薬">鎮咳薬</option>
-                        <option value="去痰薬">去痰薬</option>
-                        <option value="ステロイド">ステロイド</option>
-                        <option value="その他">その他</option>
-                    </select>
-                </div>
-
-                <h3>検索結果:</h3>
-                <div id="drug_results_list" class="drug-list-container">
-                    </div>
+        <div class="section">
+            <h2>薬の検索</h2>
+            <div class="form-group">
+                <label for="drug_name_search">薬名検索:</label>
+                <input type="text" id="drug_name_search" name="drug_name_search" placeholder="薬名または一般名を入力">
+                <button type="button" onclick="searchDrugs()">検索</button>
+            </div>
+            <div class="form-group">
+                <label for="drug_type_select">薬の種類:</label>
+                <select id="drug_type_select" name="drug_type_select" onchange="searchByType()">
+                    <option value="">全て表示</option>
+                    <option value="解熱鎮痛剤">解熱鎮痛剤</option>
+                    <option value="抗生剤">抗生剤</option>
+                    <option value="鎮咳薬">鎮咳薬</option>
+                    <option value="去痰薬">去痰薬</option>
+                    <option value="ステロイド">ステロイド</option>
+                    <option value="その他">その他</option>
+                </select>
             </div>
 
-            <div class="section">
-                <h2>患者情報入力</h2>
-                <div class="patient-info-row">
-                    <div class="patient-info-item">
-                        <div class="form-group">
-                            <label for="patient_weight">患者体重 (kg):</label>
-                            <input type="number" id="patient_weight" name="patient_weight" step="0.1" min="0" placeholder="例: 10.5">
-                        </div>
-                    </div>
-                    <div class="patient-info-item">
-                        <div class="form-group">
-                            <label for="patient_age_years">患者年齢 (歳):</label>
-                            <input type="number" id="patient_age_years" name="patient_age_years" min="0" placeholder="例: 2 (任意)">
-                        </div>
-                        <div class="form-group">
-                            <label for="prescription_days">処方日数:</label>
-                            <input type="number" id="prescription_days" min="1" value="5">
-                          </div>
+            <h3>検索結果:</h3>
+            <div id="drug_results_list" class="drug-list-container">
+                </div>
+        </div>
+
+        <div class="section">
+            <h2>患者情報入力</h2>
+            <div class="patient-info-row">
+                <div class="patient-info-item">
+                    <div class="form-group">
+                        <label for="patient_weight">患者体重 (kg):</label>
+                        <input type="number" id="patient_weight" name="patient_weight" step="0.1" min="0" placeholder="例: 10.5" required>
                     </div>
                 </div>
-                
+                <div class="patient-info-item">
+                    <div class="form-group">
+                        <label for="patient_age_years">患者年齢 (歳):</label>
+                        <input type="number" id="patient_age_years" name="patient_age_years" min="0" placeholder="例: 2" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="prescription_days">処方日数:</label>
+                        <input type="number" id="prescription_days" min="1" value="5">
+                      </div>
+                </div>
+            </div>
+            
+            <button type="button" onclick="calculateAndDisplay()">用法用量を計算</button>
+        </div>
+
+        <div class="section full-width">
+            <h2>用法用量</h2>
+            <div class="output-controls">
                 <div class="form-group">
                     <label>使用区分:</label>
                     <div class="radio-group" id="output_usage_type_group">
@@ -199,456 +234,470 @@
                     </datalist>
                 </div>
 
-                <button type="button" onclick="calculateAndDisplay()">用法用量を計算</button>
-            </div>
-
-            <div class="section">
-                <h2>用法用量</h2>
                 <div class="form-group" id="timing_options_group" style="display:none;">
                     <label for="selected_timing">服用タイミング:</label>
                     <select id="selected_timing" onchange="generateDosageOutput()">
                         </select>
                 </div>
-                <pre id="dosage_result">
-                    ここに計算された用法用量が表示されます。
-                </pre>
-                <button type="button" class="copy-button" onclick="copyToClipboard()">結果をコピー</button>
-                <button type="button" class="copy-button clear-button" onclick="clearResults()">クリア</button>
             </div>
+            
+            <pre id="dosage_result">
+                ここに計算された用法用量が表示されます。
+            </pre>
+            <button type="button" class="copy-button" onclick="copyToClipboard()">結果をコピー</button>
+            <button type="button" class="copy-button clear-button" onclick="clearResults()">クリア</button>
         </div>
+    </div>
 
-        <script>
-            let selectedDrugName = ""; 
-            let currentDrugData = null; 
-            let currentCopyText = ""; 
+    <script>
+        let selectedDrugName = ""; 
+        let currentDrugData = null; 
+        let currentCopyText = ""; 
 
-            async function searchDrugs() {
-                const searchTerm = document.getElementById('drug_name_search').value;
-                const response = await fetch(`/search?q=${encodeURIComponent(searchTerm)}`);
-                const drugs = await response.json();
-                displayDrugResults(drugs);
+        async function searchDrugs() {
+            const searchTerm = document.getElementById('drug_name_search').value;
+            // 検索ボックスが空なら全件表示をしない（件数制限のため）
+            if (searchTerm === '') {
+                displayDrugResults([]); // 空のリストを表示
+                return;
             }
 
-            async function searchByType() {
-                const selectedType = document.getElementById('drug_type_select').value;
-                const response = await fetch(`/search_by_type?type=${encodeURIComponent(selectedType)}`);
-                const drugs = await response.json();
-                displayDrugResults(drugs);
+            const response = await fetch(`/search?q=${encodeURIComponent(searchTerm)}`);
+            const drugs = await response.json();
+            displayDrugResults(drugs);
+        }
+
+        async function searchByType() {
+            const selectedType = document.getElementById('drug_type_select').value;
+            // 薬の種類検索では全件表示をしないため、タイプが選択されていなければ結果をクリア
+            if (selectedType === '') {
+                displayDrugResults([]);
+                return;
             }
 
-            function displayDrugResults(drugs) {
-                const drugListDiv = document.getElementById('drug_results_list');
-                drugListDiv.innerHTML = ''; 
+            const response = await fetch(`/search_by_type?type=${encodeURIComponent(selectedType)}`);
+            const drugs = await response.json();
+            displayDrugResults(drugs);
+        }
 
-                if (drugs.length === 0) {
-                    drugListDiv.innerHTML = '<p>該当する薬が見つかりませんでした。</p>';
+        function displayDrugResults(drugs) {
+            const drugListDiv = document.getElementById('drug_results_list');
+            drugListDiv.innerHTML = ''; 
+
+            if (drugs.length === 0) {
+                drugListDiv.innerHTML = '<p>該当する薬が見つかりませんでした。</p>';
+                return;
+            }
+
+            drugs.forEach(drug => {
+                const drugItem = document.createElement('div');
+                drugItem.classList.add('drug-item');
+                drugItem.textContent = drug.drug_name;
+                drugItem.onclick = () => selectDrug(drug.drug_name, drugItem);
+                drugListDiv.appendChild(drugItem);
+            });
+        }
+
+        function selectDrug(drugName, clickedItem) {
+            selectedDrugName = drugName;
+            const allDrugItems = document.querySelectorAll('.drug-item');
+            allDrugItems.forEach(item => item.classList.remove('selected'));
+            clickedItem.classList.add('selected');
+            
+            document.getElementById('dosage_result').textContent = "体重・年齢を入力し「用法用量を計算」ボタンを押してください。";
+            updateDailyFrequencyOptions([]); 
+            document.getElementById('selected_daily_frequency').value = ''; 
+            updateTimingOptions([]); 
+            toggleDailyFrequencyVisibility();
+            toggleTimingOptionsVisibility(); 
+            currentCopyText = ""; 
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => { 
+            // ページロード時の初期検索は行わない（空の検索結果に合わせる）
+            // const response = await fetch('/search?q='); 
+            // const drugs = await response.json();
+            // displayDrugResults(drugs);
+            displayDrugResults([]); // 初期表示は空にする
+
+            const defaultRadio = document.querySelector('input[name="output_usage_type"][value="内服"]');
+            if (defaultRadio) { 
+                defaultRadio.checked = true;
+                toggleDailyFrequencyVisibility(); 
+                toggleTimingOptionsVisibility(); 
+            } else {
+                console.error("エラー: '内服'のラジオボタンが見つかりませんでした。HTMLを確認してください。");
+            }
+        });
+
+
+        async function calculateAndDisplay() { 
+            console.log("計算ボタンがクリックされました。"); 
+            if (!selectedDrugName) {
+                document.getElementById('dosage_result').textContent = "薬を選択してください。";
+                console.log("エラー: 薬が選択されていません。"); 
+                return;
+            }
+
+            const patientWeight = document.getElementById('patient_weight').value;
+            console.log("入力された体重:", patientWeight); 
+            if (!patientWeight || parseFloat(patientWeight) <= 0) {
+                document.getElementById('dosage_result').textContent = "患者体重は必須です。正しく入力してください。";
+                console.log("エラー: 体重が不正です。"); 
+                return;
+            }
+
+            const patientAgeYears = document.getElementById('patient_age_years').value; 
+            console.log("入力された年齢 (歳):", patientAgeYears); 
+            // ★★★ 年齢必須化のクライアントサイドバリデーション ★★★
+            if (!patientAgeYears || parseInt(patientAgeYears) < 0 || isNaN(parseInt(patientAgeYears))) {
+                document.getElementById('dosage_result').textContent = "患者年齢は必須です。正しく入力してください。";
+                console.log("エラー: 年齢が不正です。"); 
+                return;
+            }
+
+
+            try {
+                const requestBody = JSON.stringify({
+                    drug_name: selectedDrugName,
+                    weight: patientWeight,
+                    age_years: patientAgeYears 
+                });
+                console.log("Flaskへ送信するデータ:", requestBody); 
+
+                const response = await fetch('/calculate_dosage', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: requestBody 
+                });
+
+                console.log("FlaskからのHTTPレスポンスステータス:", response.status); 
+                const result = await response.json();
+                console.log("Flaskからのレスポンスデータ:", result); 
+                
+                if (!response.ok) { 
+                    document.getElementById('dosage_result').textContent = "計算エラー: " + (result.error || "サーバーエラーが発生しました。");
+                    currentDrugData = null; 
+                    currentCopyText = ""; 
                     return;
                 }
 
-                drugs.forEach(drug => {
-                    const drugItem = document.createElement('div');
-                    drugItem.classList.add('drug-item');
-                    drugItem.textContent = drug.drug_name;
-                    drugItem.onclick = () => selectDrug(drug.drug_name, drugItem);
-                    drugListDiv.appendChild(drugItem);
-                });
-            }
+                currentDrugData = result; 
 
-            function selectDrug(drugName, clickedItem) {
-                selectedDrugName = drugName;
-                const allDrugItems = document.querySelectorAll('.drug-item');
-                allDrugItems.forEach(item => item.classList.remove('selected'));
-                clickedItem.classList.add('selected');
-                
-                document.getElementById('dosage_result').textContent = "体重・年齢を入力し「用法用量を計算」ボタンを押してください。";
-                updateDailyFrequencyOptions([]); 
-                document.getElementById('selected_daily_frequency').value = ''; 
-                updateTimingOptions([]); 
-                toggleDailyFrequencyVisibility();
-                toggleTimingOptionsVisibility(); 
-                currentCopyText = ""; 
-            }
+                if (currentDrugData.drug_name) {
+                    const initialUsageType = currentDrugData.initial_usage_type || '内服';
+                    const targetRadio = document.querySelector(`input[name="output_usage_type"][value="${initialUsageType}"]`);
+                    if (targetRadio) { 
+                        targetRadio.checked = true;
+                    } else {
+                        console.error(`エラー: value="${initialUsageType}" のラジオボタンが見つかりませんでした。HTMLまたはDBのusage_typeを確認してください。`);
+                    }
 
-            document.addEventListener('DOMContentLoaded', async () => { 
-                const response = await fetch('/search?q='); 
-                const drugs = await response.json();
-                displayDrugResults(drugs);
-                
-                const defaultRadio = document.querySelector('input[name="output_usage_type"][value="内服"]');
-                if (defaultRadio) { 
-                    defaultRadio.checked = true;
+                    updateDailyFrequencyOptions(currentDrugData.daily_frequency_options);
+                    
+                    const currentFrequencyValue = document.getElementById('selected_daily_frequency').value;
+                    let freqToSet = '';
+                    if (currentFrequencyValue && currentDrugData.daily_frequency_options.includes(currentFrequencyValue)) {
+                        freqToSet = currentFrequencyValue; 
+                    } else if (currentDrugData.daily_frequency_options.length > 0) {
+                        freqToSet = currentDrugData.daily_frequency_options[0]; 
+                    }
+                    document.getElementById('selected_daily_frequency').value = freqToSet;
+
+                    updateTimingOptions(currentDrugData.timing_options, freqToSet); 
+                    
                     toggleDailyFrequencyVisibility(); 
                     toggleTimingOptionsVisibility(); 
-                } else {
-                    console.error("エラー: '内服'のラジオボタンが見つかりませんでした。HTMLを確認してください。");
-                }
-            });
-
-
-            async function calculateAndDisplay() { 
-                console.log("計算ボタンがクリックされました。"); 
-                if (!selectedDrugName) {
-                    document.getElementById('dosage_result').textContent = "薬を選択してください。";
-                    console.log("エラー: 薬が選択されていません。"); 
-                    return;
-                }
-
-                const patientWeight = document.getElementById('patient_weight').value;
-                console.log("入力された体重:", patientWeight); 
-                if (!patientWeight || parseFloat(patientWeight) <= 0) {
-                    document.getElementById('dosage_result').textContent = "患者体重は必須です。正しく入力してください。";
-                    console.log("エラー: 体重が不正です。"); 
-                    return;
-                }
-
-                const patientAgeYears = document.getElementById('patient_age_years').value; 
-                console.log("入力された年齢 (歳):", patientAgeYears); 
-
-                try {
-                    const requestBody = JSON.stringify({
-                        drug_name: selectedDrugName,
-                        weight: patientWeight,
-                        age_years: patientAgeYears 
-                    });
-                    console.log("Flaskへ送信するデータ:", requestBody); 
-
-                    const response = await fetch('/calculate_dosage', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: requestBody 
-                    });
-
-                    console.log("FlaskからのHTTPレスポンスステータス:", response.status); 
-                    const result = await response.json();
-                    console.log("Flaskからのレスポンスデータ:", result); 
                     
-                    if (!response.ok) { 
-                        document.getElementById('dosage_result').textContent = "計算エラー: " + (result.error || "サーバーエラーが発生しました。");
-                        currentDrugData = null; 
-                        currentCopyText = ""; 
-                        return;
-                    }
+                    generateDosageOutput();
 
-                    currentDrugData = result; 
-
-                    if (currentDrugData.drug_name) {
-                        const initialUsageType = currentDrugData.initial_usage_type || '内服';
-                        const targetRadio = document.querySelector(`input[name="output_usage_type"][value="${initialUsageType}"]`);
-                        if (targetRadio) { 
-                            targetRadio.checked = true;
-                        } else {
-                            console.error(`エラー: value="${initialUsageType}" のラジオボタンが見つかりませんでした。HTMLまたはDBのusage_typeを確認してください。`);
-                        }
-
-                        updateDailyFrequencyOptions(currentDrugData.daily_frequency_options);
-                        
-                        const currentFrequencyValue = document.getElementById('selected_daily_frequency').value;
-                        let freqToSet = '';
-                        if (currentFrequencyValue && currentDrugData.daily_frequency_options.includes(currentFrequencyValue)) {
-                            freqToSet = currentFrequencyValue; 
-                        } else if (currentDrugData.daily_frequency_options.length > 0) {
-                            freqToSet = currentDrugData.daily_frequency_options[0]; 
-                        }
-                        document.getElementById('selected_daily_frequency').value = freqToSet;
-
-                        updateTimingOptions(currentDrugData.timing_options, freqToSet); 
-                        
-                        toggleDailyFrequencyVisibility(); 
-                        toggleTimingOptionsVisibility(); 
-                        
-                        generateDosageOutput();
-
-                    } else {
-                        document.getElementById('dosage_result').textContent = "計算エラー: " + (currentDrugData.error || "薬の情報が見つかりませんでした。");
-                        currentCopyText = ""; 
-                    }
-                } catch (error) {
-                    console.error("Fetchエラー:", error);
-                    document.getElementById('dosage_result').textContent = "通信エラーが発生しました。サーバーが起動しているか確認してください。";
-                    currentDrugData = null;
+                } else {
+                    document.getElementById('dosage_result').textContent = "計算エラー: " + (currentDrugData.error || "薬の情報が見つかりませんでした。");
                     currentCopyText = ""; 
                 }
+            } catch (error) {
+                console.error("Fetchエラー:", error);
+                document.getElementById('dosage_result').textContent = "通信エラーが発生しました。サーバーが起動しているか確認してください。";
+                currentDrugData = null;
+                currentCopyText = ""; 
             }
+        }
 
-            function handleUsageTypeChange() {
-                toggleDailyFrequencyVisibility(); 
-                toggleTimingOptionsVisibility(); 
-                if (currentDrugData) {
-                    updateDailyFrequencyOptions(currentDrugData.daily_frequency_options); 
-                    updateTimingOptions(currentDrugData.timing_options, document.getElementById('selected_daily_frequency').value); 
-                }
-                generateDosageOutput(); 
+        function handleUsageTypeChange() {
+            toggleDailyFrequencyVisibility(); 
+            toggleTimingOptionsVisibility(); 
+            if (currentDrugData) {
+                updateDailyFrequencyOptions(currentDrugData.daily_frequency_options); 
+                updateTimingOptions(currentDrugData.timing_options, document.getElementById('selected_daily_frequency').value); 
             }
+            generateDosageOutput(); 
+        }
 
-            function handleFrequencyChange() {
-                if (currentDrugData) {
-                    updateTimingOptions(currentDrugData.timing_options, document.getElementById('selected_daily_frequency').value); 
-                }
-                generateDosageOutput(); 
+        function handleFrequencyChange() {
+            if (currentDrugData) {
+                updateTimingOptions(currentDrugData.timing_options, document.getElementById('selected_daily_frequency').value); 
             }
+            generateDosageOutput(); 
+        }
 
-            function updateDailyFrequencyOptions(options) {
-                const dataList = document.getElementById('daily_frequency_list');
-                dataList.innerHTML = ''; 
+        function updateDailyFrequencyOptions(options) {
+            const dataList = document.getElementById('daily_frequency_list');
+            dataList.innerHTML = ''; 
 
-                if (options && options.length > 0) {
-                    options.forEach(option => {
-                        const opt = document.createElement('option');
-                        opt.value = option; 
-                        dataList.appendChild(opt);
-                    });
+            if (options && options.length > 0) {
+                options.forEach(option => {
+                    const opt = document.createElement('option');
+                    opt.value = option; 
+                    dataList.appendChild(opt);
+                });
+            }
+            if (!options || options.length === 0) {
+                 document.getElementById('selected_daily_frequency').value = '';
+            }
+        }
+        
+        function toggleDailyFrequencyVisibility() {
+            const selectedUsageType = document.querySelector('input[name="output_usage_type"]:checked')?.value; 
+            const dailyFrequencyGroup = document.getElementById('daily_frequency_group');
+            
+            if (dailyFrequencyGroup) { 
+                if (selectedUsageType === '内服') {
+                    dailyFrequencyGroup.style.display = 'block'; 
+                } else {
+                    dailyFrequencyGroup.style.display = 'none'; 
                 }
-                if (!options || options.length === 0) {
-                     document.getElementById('selected_daily_frequency').value = '';
+            } else {
+                console.error("エラー: 'daily_frequency_group' が見つかりませんでした。HTMLを確認してください。");
+            }
+        }
+
+        function updateTimingOptions(allTimingOptions, selectedFrequency) {
+            const timingSelect = document.getElementById('selected_timing');
+            timingSelect.innerHTML = ''; 
+
+            const selectedUsageType = document.querySelector('input[name="output_usage_type"]:checked')?.value;
+
+            let filteredTimingOptions = [];
+
+            if (selectedUsageType === '内服') {
+                const freqNum = parseInt(selectedFrequency);
+                const generalTimings = ['朝食後', '昼食後', '夕食後', '毎食後', '朝', '昼', '夕', '眠前', '就寝前', '食前', '食間'];
+                const situationalTimings = ['時', '必要時', '頓服', '発熱時', '疼痛時'];
+
+                if (isNaN(freqNum) || selectedFrequency === '') { 
+                    filteredTimingOptions = allTimingOptions.filter(t => generalTimings.includes(t));
+                    if (filteredTimingOptions.length === 0) {
+                        filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st) || (t.includes('朝') && t.includes('夕') && t.includes('食後')))); 
+                    }
+                } else if (freqNum === 1) {
+                    filteredTimingOptions = allTimingOptions.filter(t => 
+                        t.includes('朝') || t.includes('眠前') || t.includes('就寝前') || t.includes('1日1回') || t.includes('1回') 
+                    );
+                    if (filteredTimingOptions.length === 0) {
+                        filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st) || (t.includes('朝') && t.includes('夕') && t.includes('食後'))));
+                    }
+                } else if (freqNum === 2) {
+                    filteredTimingOptions = allTimingOptions.filter(t => 
+                        (t.includes('朝') && (t.includes('夕') || t.includes('眠前'))) || t.includes('朝食後,夕食後') || t.includes('1日2回') || t.includes('2回') 
+                    );
+                    if (filteredTimingOptions.length === 0) {
+                        filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st) || (t.includes('朝') && t.includes('夕') && t.includes('食後'))));
+                    }
+                } else if (freqNum === 3) {
+                    filteredTimingOptions = allTimingOptions.filter(t => 
+                        t.includes('毎食後') || (t.includes('朝食後') && t.includes('昼食後') && t.includes('夕食後')) || t.includes('1日3回') || t.includes('3回') 
+                    );
+                    if (filteredTimingOptions.length === 0) {
+                        filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st) || (t.includes('朝') && t.includes('夕') && t.includes('食後'))));
+                    }
+                } else {
+                    filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st))); 
                 }
+                
+                if (filteredTimingOptions.length === 0 && allTimingOptions.length > 0) {
+                    filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st)));
+                }
+
+
+            } else { 
+                filteredTimingOptions = allTimingOptions.filter(t => situationalTimings.some(st => t.includes(st)));
+                if (filteredTimingOptions.length === 0) filteredTimingOptions = ['必要時']; 
             }
             
-            function toggleDailyFrequencyVisibility() {
-                const selectedUsageType = document.querySelector('input[name="output_usage_type"]:checked')?.value; 
-                const dailyFrequencyGroup = document.getElementById('daily_frequency_group');
-                
-                if (dailyFrequencyGroup) { 
-                    if (selectedUsageType === '内服') {
-                        dailyFrequencyGroup.style.display = 'block'; 
-                    } else {
-                        dailyFrequencyGroup.style.display = 'none'; 
-                    }
-                } else {
-                    console.error("エラー: 'daily_frequency_group' が見つかりませんでした。HTMLを確認してください。");
-                }
-            }
+            if (filteredTimingOptions.length > 0) {
+                const uniqueFilteredOptions = Array.from(new Set(filteredTimingOptions));
 
-            function updateTimingOptions(allTimingOptions, selectedFrequency) {
-                const timingSelect = document.getElementById('selected_timing');
-                timingSelect.innerHTML = ''; 
-
-                const selectedUsageType = document.querySelector('input[name="output_usage_type"]:checked')?.value;
-
-                let filteredTimingOptions = [];
-
-                if (selectedUsageType === '内服') {
-                    const freqNum = parseInt(selectedFrequency);
-                    const generalTimings = ['朝食後', '昼食後', '夕食後', '毎食後', '朝', '昼', '夕', '眠前', '就寝前', '食前', '食間'];
-                    const situationalTimings = ['時', '必要時', '頓服', '発熱時', '疼痛時'];
-
-                    if (isNaN(freqNum) || selectedFrequency === '') { 
-                        filteredTimingOptions = allTimingOptions.filter(t => generalTimings.includes(t));
-                        if (filteredTimingOptions.length === 0) {
-                            // original: filteredTimings = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st)));
-                            filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st) || (t.includes('朝') && t.includes('夕') && t.includes('食後')))); // 朝夕食後などの複雑なパターンも考慮
-                        }
-                    } else if (freqNum === 1) {
-                        filteredTimingOptions = allTimingOptions.filter(t => 
-                            t.includes('朝') || t.includes('眠前') || t.includes('就寝前') || t.includes('1日1回') || t.includes('1回') 
-                        );
-                        if (filteredTimingOptions.length === 0) {
-                            // original: filteredTimings = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st)));
-                            filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st) || (t.includes('朝') && t.includes('夕') && t.includes('食後'))));
-                        }
-                    } else if (freqNum === 2) {
-                        filteredTimingOptions = allTimingOptions.filter(t => 
-                            (t.includes('朝') && (t.includes('夕') || t.includes('眠前'))) || t.includes('朝食後,夕食後') || t.includes('1日2回') || t.includes('2回') 
-                        );
-                        if (filteredTimingOptions.length === 0) {
-                            // original: filteredTimings = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st)));
-                            filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st) || (t.includes('朝') && t.includes('夕') && t.includes('食後'))));
-                        }
-                    } else if (freqNum === 3) {
-                        filteredTimingOptions = allTimingOptions.filter(t => 
-                            t.includes('毎食後') || (t.includes('朝食後') && t.includes('昼食後') && t.includes('夕食後')) || t.includes('1日3回') || t.includes('3回') 
-                        );
-                        if (filteredTimingOptions.length === 0) {
-                            // original: filteredTimings = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st)));
-                            filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st) || (t.includes('朝') && t.includes('夕') && t.includes('食後'))));
-                        }
-                    } else {
-                        filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st))); 
-                    }
-                    
-                    if (filteredTimingOptions.length === 0 && allTimingOptions.length > 0) {
-                        filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st)));
-                    }
-
-
-                } else { // 頓服の場合
-                    filteredTimingOptions = allTimingOptions.filter(t => situationalTimings.some(st => t.includes(st)));
-                    if (filteredTimingOptions.length === 0) filteredTimingOptions = ['必要時']; 
-                }
-                
-                if (filteredTimingOptions.length > 0) {
-                    const uniqueFilteredOptions = Array.from(new Set(filteredTimingOptions));
-
-                    uniqueFilteredOptions.forEach(option => {
-                        const opt = document.createElement('option');
-                        opt.value = option;
-                        opt.textContent = option;
-                        timingSelect.appendChild(opt);
-                    });
-                } else {
+                uniqueFilteredOptions.forEach(option => {
                     const opt = document.createElement('option');
-                    opt.value = '';
-                    opt.textContent = 'タイミング候補なし';
+                    opt.value = option;
+                    opt.textContent = option;
                     timingSelect.appendChild(opt);
-                }
-                if (selectedUsageType === '頓服' && filteredTimingOptions.includes('必要時')) {
-                     timingSelect.value = '必要時';
-                } else {
-                    timingSelect.value = filteredTimingOptions[0] || ''; 
-                }
+                });
+            } else {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'タイミング候補なし';
+                timingSelect.appendChild(opt);
             }
-
-            function toggleTimingOptionsVisibility() {
-                const selectedUsageType = document.querySelector('input[name="output_usage_type"]:checked')?.value;
-                const timingOptionsGroup = document.getElementById('timing_options_group');
-
-                if (timingOptionsGroup) {
-                    if (selectedUsageType === '内服') {
-                        timingOptionsGroup.style.display = 'block'; 
-                    } else {
-                        timingOptionsGroup.style.display = 'none'; 
-                    }
-                } else {
-                    console.error("エラー: 'timing_options_group' が見つかりませんでした。HTMLを確認してください。");
-                }
+            if (selectedUsageType === '頓服' && filteredTimingOptions.includes('必要時')) {
+                 timingSelect.value = '必要時';
+            } else {
+                timingSelect.value = filteredTimingOptions[0] || ''; 
             }
+        }
 
+        function toggleTimingOptionsVisibility() {
+            const selectedUsageType = document.querySelector('input[name="output_usage_type"]:checked')?.value;
+            const timingOptionsGroup = document.getElementById('timing_options_group');
 
-            function generateDosageOutput() {
-                if (!currentDrugData || currentDrugData.calculated_daily_dose_value === null) { 
-                    const currentText = document.getElementById('dosage_result').textContent;
-                    if (!currentText.startsWith("計算エラー")) { 
-                        document.getElementById('dosage_result').textContent = "薬を選択し、体重・年齢を入力して計算ボタンを押してください。";
-                    }
-                    currentCopyText = ""; 
-                    return;
-                }
-
-                const drugName = currentDrugData.drug_name;
-                const calculatedDailyDose = currentDrugData.calculated_daily_dose_value; 
-                const doseUnit = currentDrugData.dose_unit;
-                const formulationType = currentDrugData.formulation_type; 
-                const notes = currentDrugData.notes; 
-                
-                const selectedUsageType = document.querySelector('input[name="output_usage_type"]:checked').value;
-                let selectedFrequency = document.getElementById('selected_daily_frequency').value;
-                if (!selectedFrequency || isNaN(parseInt(selectedFrequency))) { 
-                    selectedFrequency = ""; 
-                }
-                const selectedTiming = document.getElementById('selected_timing').value; 
-
-
-                let outputTextForDisplay = ""; 
-                let outputTextForCopy = ""; 
-
-                let singleDoseDisplay = ""; 
-
-                if (selectedUsageType === '内服' && selectedFrequency !== "" && parseInt(selectedFrequency) > 0) { 
-                    const calculatedSingleDose = calculatedDailyDose / parseInt(selectedFrequency); 
-                    singleDoseDisplay = `${calculatedSingleDose.toFixed(3).replace(/\.?0+$/, '')}${doseUnit}`; 
-                } else {
-                    singleDoseDisplay = `${calculatedDailyDose.toFixed(3).replace(/\.?0+$/, '')}${doseUnit}`; 
-                }
-                
-                let generalName = currentDrugData.aliases ? currentDrugData.aliases.split(',')[0] : ''; 
-                if (generalName && drugName.includes(generalName)) { 
-                    generalName = ''; 
-                }
-                if (generalName) {
-                    outputTextForCopy += `${generalName}（${drugName}） ${singleDoseDisplay}\n`;
-                } else {
-                    outputTextForCopy += `${drugName} ${singleDoseDisplay}\n`;
-                }
-                
-
+            if (timingOptionsGroup) {
                 if (selectedUsageType === '内服') {
-                    let frequencyLine = "";
-                    if (selectedFrequency !== "") {
-                         frequencyLine += `1日${selectedFrequency}`;
-                         if (formulationType === 'テープ' || formulationType === '貼付剤' || formulationType === '坐剤') { 
-                             frequencyLine += `${doseUnit}`; 
-                         } else {
-                             frequencyLine += `回`; 
-                         }
-                    } else {
-                        frequencyLine += `1日 回数不明`; 
-                    }
-                   
-                    if (selectedTiming) { 
-                        frequencyLine += ` ${selectedTiming}`; 
-                    }
-                    outputTextForCopy += frequencyLine + `\n`; 
-                } else { 
-                    let frequencyLine = "";
-                    if (selectedFrequency !== "") { 
-                        if (formulationType === 'テープ' || formulationType === '貼付剤' || formulationType === '坐剤') {
-                            frequencyLine += `1日${selectedFrequency}${doseUnit}まで`; 
-                        } else {
-                            frequencyLine += `1日${selectedFrequency}回まで`; 
-                        }
-                    } else {
-                        frequencyLine += `必要時`; 
-                    }
-                    outputTextForCopy += frequencyLine + `\n`; 
-
-                    if (selectedTiming && selectedTiming !== '必要時' && selectedTiming !== 'タイミング候補なし') {
-                         outputTextForCopy += ` (${selectedTiming})\n`;
-                    }
-                }
-
-                const days = document.getElementById('prescription_days')?.value || ''; 
-                if (days) {
-                    outputTextForCopy += `${days}日分\n`;
-                }
-                
-                outputTextForDisplay = outputTextForCopy;
-                if (notes) {
-                    outputTextForDisplay += `備考: ${notes}\n`;
-                }
-
-                document.getElementById('dosage_result').textContent = outputTextForDisplay;
-                currentCopyText = outputTextForCopy; 
-            }
-
-
-            function copyToClipboard() {
-                const resultText = currentCopyText; 
-                if (resultText) {
-                    navigator.clipboard.writeText(resultText).then(() => {
-                        alert('結果がクリップボードにコピーされました！');
-                    }).catch(err => {
-                        console.error('コピーに失敗しました: ', err);
-                    });
+                    timingOptionsGroup.style.display = 'block'; 
                 } else {
-                    alert('コピーする内容がありません。');
+                    timingOptionsGroup.style.display = 'none'; 
                 }
+            } else {
+                console.error("エラー: 'timing_options_group' が見つかりませんでした。HTMLを確認してください。");
             }
+        }
 
-            function clearResults() {
-                document.getElementById('dosage_result').textContent = "";
-                document.getElementById('patient_weight').value = "";
-                document.getElementById('patient_age_years').value = "";
-                selectedDrugName = ""; 
-                currentDrugData = null; 
+
+        function generateDosageOutput() {
+            if (!currentDrugData || currentDrugData.calculated_daily_dose_value === null) { 
+                const currentText = document.getElementById('dosage_result').textContent;
+                if (!currentText.startsWith("計算エラー")) { 
+                    document.getElementById('dosage_result').textContent = "薬を選択し、体重・年齢を入力して計算ボタンを押してください。";
+                }
                 currentCopyText = ""; 
-                const allDrugItems = document.querySelectorAll('.drug-item');
-                allDrugItems.forEach(item => item.classList.remove('selected')); 
-                document.getElementById('drug_name_search').value = ""; 
-                document.getElementById('drug_type_select').value = ""; 
-                
-                const defaultUsageTypeRadio = document.querySelector('input[name="output_usage_type"][value="内服"]');
-                if (defaultUsageTypeRadio) { 
-                    defaultRadio.checked = true;
-                }
-                toggleDailyFrequencyVisibility(); 
-                toggleTimingOptionsVisibility(); 
-                
-                updateDailyFrequencyOptions([]); 
-                document.getElementById('selected_daily_frequency').value = ''; 
-                updateTimingOptions([]); 
+                return;
             }
 
-        </script>
-    </body>
-    </html>
+            const drugName = currentDrugData.drug_name;
+            const calculatedDailyDose = currentDrugData.calculated_daily_dose_value; 
+            const doseUnit = currentDrugData.dose_unit;
+            const formulationType = currentDrugData.formulation_type; 
+            const notes = currentDrugData.notes; 
+            
+            const selectedUsageType = document.querySelector('input[name="output_usage_type"]:checked').value;
+            let selectedFrequency = document.getElementById('selected_daily_frequency').value;
+            if (!selectedFrequency || isNaN(parseInt(selectedFrequency))) { 
+                selectedFrequency = ""; 
+            }
+            const selectedTiming = document.getElementById('selected_timing').value; 
+
+
+            let outputTextForDisplay = ""; 
+            let outputTextForCopy = ""; 
+
+            let singleDoseDisplay = ""; 
+
+            if (selectedUsageType === '内服' && selectedFrequency !== "" && parseInt(selectedFrequency) > 0) { 
+                const calculatedSingleDose = calculatedDailyDose / parseInt(selectedFrequency); 
+                singleDoseDisplay = `${calculatedSingleDose.toFixed(3).replace(/\.?0+$/, '')}${doseUnit}`; 
+            } else {
+                singleDoseDisplay = `${calculatedDailyDose.toFixed(3).replace(/\.?0+$/, '')}${doseUnit}`; 
+            }
+            
+            let generalName = currentDrugData.aliases ? currentDrugData.aliases.split(',')[0] : ''; 
+            if (generalName && drugName.includes(generalName)) { 
+                generalName = ''; 
+            }
+            if (generalName) {
+                outputTextForCopy += `${generalName}（${drugName}） ${singleDoseDisplay}\n`;
+            } else {
+                outputTextForCopy += `${drugName} ${singleDoseDisplay}\n`;
+            }
+            
+
+            if (selectedUsageType === '内服') {
+                let frequencyLine = "";
+                if (selectedFrequency !== "") {
+                     frequencyLine += `1日${selectedFrequency}`;
+                     if (formulationType === 'テープ' || formulationType === '貼付剤' || formulationType === '坐剤') { 
+                         frequencyLine += `${doseUnit}`; 
+                     } else {
+                         frequencyLine += `回`; 
+                     }
+                } else {
+                    frequencyLine += `1日 回数不明`; 
+                }
+               
+                if (selectedTiming) { 
+                    frequencyLine += ` ${selectedTiming}`; 
+                }
+                outputTextForCopy += frequencyLine + `\n`; 
+            } else { 
+                let frequencyLine = "";
+                if (selectedFrequency !== "") { 
+                    if (formulationType === 'テープ' || formulationType === '貼付剤' || formulationType === '坐剤') {
+                        frequencyLine += `1日${selectedFrequency}${doseUnit}まで`; 
+                    } else {
+                        frequencyLine += `1日${selectedFrequency}回まで`; 
+                    }
+                } else {
+                    frequencyLine += `必要時`; 
+                }
+                outputTextForCopy += frequencyLine + `\n`; 
+
+                if (selectedTiming && selectedTiming !== '必要時' && selectedTiming !== 'タイミング候補なし') {
+                     outputTextForCopy += ` (${selectedTiming})\n`;
+                }
+            }
+
+            const days = document.getElementById('prescription_days')?.value || ''; 
+            if (days) {
+                outputTextForCopy += `${days}日分\n`;
+            }
+            
+            outputTextForDisplay = outputTextForCopy;
+            if (notes) {
+                outputTextForDisplay += `備考: ${notes}\n`;
+            }
+
+            document.getElementById('dosage_result').textContent = outputTextForDisplay;
+            currentCopyText = outputTextForCopy; 
+        }
+
+
+        function copyToClipboard() {
+            const resultText = currentCopyText; 
+            if (resultText) {
+                navigator.clipboard.writeText(resultText).then(() => {
+                    alert('結果がクリップボードにコピーされました！');
+                }).catch(err => {
+                    console.error('コピーに失敗しました: ', err);
+                });
+            } else {
+                alert('コピーする内容がありません。');
+            }
+        }
+
+        function clearResults() {
+            document.getElementById('dosage_result').textContent = "";
+            document.getElementById('patient_weight').value = "";
+            document.getElementById('patient_age_years').value = "";
+            selectedDrugName = ""; 
+            currentDrugData = null; 
+            currentCopyText = ""; 
+            const allDrugItems = document.querySelectorAll('.drug-item');
+            allDrugItems.forEach(item => item.classList.remove('selected')); 
+            document.getElementById('drug_name_search').value = ""; 
+            document.getElementById('drug_type_select').value = ""; 
+            
+            const defaultUsageTypeRadio = document.querySelector('input[name="output_usage_type"][value="内服"]');
+            if (defaultUsageTypeRadio) { 
+                defaultRadio.checked = true;
+            }
+            toggleDailyFrequencyVisibility(); 
+            toggleTimingOptionsVisibility(); 
+            
+            updateDailyFrequencyOptions([]); 
+            document.getElementById('selected_daily_frequency').value = ''; 
+            updateTimingOptions([]); 
+        }
+
+    </script>
+</body>
+</html>
