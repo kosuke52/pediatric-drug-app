@@ -58,8 +58,8 @@ with app.app_context():
                 timing_options TEXT,
                 formulation_type TEXT,
                 calculated_dose_unit TEXT,
-                max_daily_dose_per_kg REAL, -- 新しいカラム
-                max_daily_fixed_dose REAL -- 新しいカラム
+                max_daily_dose_per_kg REAL, 
+                max_daily_fixed_dose REAL 
             );
         '''
         cursor.execute(create_table_sql)
@@ -140,7 +140,7 @@ def calculate_dosage_api():
         return jsonify({"error": "患者体重は数値で入力してください。", "drug_data": None}), 400
 
     patient_age_months = None
-    if not patient_age_years_str or int(patient_age_years_str) < 0: # 年齢必須化
+    if not patient_age_years_str or int(patient_age_years_str) < 0: 
         return jsonify({"error": "患者年齢は必須です。正しく入力してください。", "drug_data": None}), 400
     try:
         patient_age_years = int(patient_age_years_str)
@@ -161,7 +161,6 @@ def calculate_dosage_api():
     if not drug_info:
         return jsonify({"error": "薬の情報が見つかりません。", "drug_data": None}), 404
 
-    # 年齢バリデーション（計算基準とは独立）
     if patient_age_months is not None: 
         min_age_drug = drug_info['min_age_months']
         max_age_drug = drug_info['max_age_months']
@@ -182,7 +181,6 @@ def calculate_dosage_api():
     calculated_daily_dose_value = None 
     final_dose_unit = "" 
     
-    # 1日総量計算ロジック
     if drug_info['dosage_unit'] == 'kg':
         if drug_info['daily_dose_per_kg'] is not None: 
             calculated_daily_dose_value = patient_weight * drug_info['daily_dose_per_kg']
@@ -208,22 +206,19 @@ def calculate_dosage_api():
     else:
         return jsonify({"error": f"{drug_name} の用量計算の基準が不明です。", "drug_data": None}), 400
 
-    # ★★★ 1日最大量バリデーションの追加 ★★★
+    # 1日最大量バリデーション
     if calculated_daily_dose_value is not None:
         max_daily_dose_per_kg = drug_info['max_daily_dose_per_kg']
         max_daily_fixed_dose = drug_info['max_daily_fixed_dose']
 
-        # 体重あたりの最大量チェック
         if max_daily_dose_per_kg is not None:
-            calculated_max_dose_per_kg = patient_weight * max_daily_dose_per_kg
-            if calculated_daily_dose_value > calculated_max_dose_per_kg:
-                return jsonify({"error": f"{drug_name} の1日総量 ({calculated_daily_dose_value:.3f}) は、体重あたりの1日最大量 ({calculated_max_dose_per_kg:.3f}) を超えています。", "drug_data": None}), 400
+            calculated_max_dose_per_kg_total = patient_weight * max_daily_dose_per_kg # 体重あたりの最大量
+            if calculated_daily_dose_value > calculated_max_dose_per_kg_total:
+                return jsonify({"error": f"{drug_name} の1日総量 ({calculated_daily_dose_value:.3f}) は、体重あたりの1日最大量 ({calculated_max_dose_per_kg_total:.3f}) を超えています。", "drug_data": None}), 400
         
-        # 固定の1日最大量チェック
         if max_daily_fixed_dose is not None:
             if calculated_daily_dose_value > max_daily_fixed_dose:
                 return jsonify({"error": f"{drug_name} の1日総量 ({calculated_daily_dose_value:.3f}) は、固定の1日最大量 ({max_daily_fixed_dose:.3f}) を超えています。", "drug_data": None}), 400
-    # ★★★ ここまで1日最大量バリデーションの追加 ★★★
 
     if drug_info['calculated_dose_unit']:
         final_dose_unit = drug_info['calculated_dose_unit']
@@ -318,7 +313,7 @@ def add_drug():
             'daily_dose_per_kg', 'daily_fixed_dose', 'daily_dose_age_specific', 
             'daily_frequency', 'notes', 'usage_type', 'timing_options', 'formulation_type',
             'calculated_dose_unit',
-            'max_daily_dose_per_kg', 'max_daily_fixed_dose' # 新しいカラム
+            'max_daily_dose_per_kg', 'max_daily_fixed_dose' 
         ]
         insert_placeholders = ', '.join(['%s'] * len(insert_columns)) if DATABASE_URL else ', '.join(['?'] * len(insert_columns))
         
@@ -342,7 +337,9 @@ def add_drug():
             data.get('usage_type', '内服'),
             data.get('timing_options'),
             data.get('formulation_type'),
-            data.get('calculated_dose_unit')
+            data.get('calculated_dose_unit'),
+            data.get('max_daily_dose_per_kg'), # 新しいカラム
+            data.get('max_daily_fixed_dose') # 新しいカラム
         ))
         conn.commit()
         conn.close()
@@ -377,7 +374,7 @@ def update_drug(drug_id):
             daily_dose_per_kg = %s, daily_fixed_dose = %s, daily_dose_age_specific = %s,
             daily_frequency = %s, notes = %s,
             usage_type = %s, timing_options = %s, formulation_type = %s, calculated_dose_unit = %s,
-            max_daily_dose_per_kg = %s, max_daily_fixed_dose = %s -- 新しいカラム
+            max_daily_dose_per_kg = %s, max_daily_fixed_dose = %s 
         '''
         if not DATABASE_URL: # SQLiteの場合
             update_set_clause = update_set_clause.replace('%s', '?')
@@ -401,8 +398,8 @@ def update_drug(drug_id):
             data.get('timing_options'),
             data.get('formulation_type'),
             data.get('calculated_dose_unit'),
-            data.get('max_daily_dose_per_kg'), # 新しいカラム
-            data.get('max_daily_fixed_dose') # 新しいカラム
+            data.get('max_daily_dose_per_kg'), 
+            data.get('max_daily_fixed_dose') 
         )
         
         where_placeholder = '%s' if DATABASE_URL else '?'
