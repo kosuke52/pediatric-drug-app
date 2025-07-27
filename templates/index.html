@@ -139,12 +139,11 @@
         }
         .patient-info-item {
             flex: 1; 
-            min-width: 180px; /* アイテムの最小幅を調整 */
+            min-width: 180px; 
         }
         .patient-info-item .form-group {
             margin-bottom: 0; 
         }
-        /* 新しい単位表示と回数・タイミングの配置用スタイル */
         .output-controls {
             display: flex;
             flex-wrap: wrap;
@@ -157,9 +156,23 @@
             flex-grow: 1;
             min-width: 150px;
         }
-        .output-controls .radio-group,
-        .output-controls .select-group {
+        .output-controls .radio-group {
             margin-bottom: 0;
+        }
+        /* スクロールバーのスタイルを調整 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
         }
     </style>
 </head>
@@ -189,6 +202,7 @@
 
             <h3>検索結果:</h3>
             <div id="drug_results_list" class="drug-list-container">
+                <p>検索キーワードを入力し「検索」ボタンを押してください。</p>
                 </div>
         </div>
 
@@ -489,28 +503,28 @@
                 if (isNaN(freqNum) || selectedFrequency === '') { 
                     filteredTimingOptions = allTimingOptions.filter(t => generalTimings.includes(t));
                     if (filteredTimingOptions.length === 0) {
-                        filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st) || (t.includes('朝') && t.includes('夕') && t.includes('食後')))); 
+                        filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st)));
                     }
                 } else if (freqNum === 1) {
                     filteredTimingOptions = allTimingOptions.filter(t => 
                         t.includes('朝') || t.includes('眠前') || t.includes('就寝前') || t.includes('1日1回') || t.includes('1回') 
                     );
                     if (filteredTimingOptions.length === 0) {
-                        filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st) || (t.includes('朝') && t.includes('夕') && t.includes('食後'))));
+                        filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st)));
                     }
                 } else if (freqNum === 2) {
                     filteredTimingOptions = allTimingOptions.filter(t => 
                         (t.includes('朝') && (t.includes('夕') || t.includes('眠前'))) || t.includes('朝食後,夕食後') || t.includes('1日2回') || t.includes('2回') 
                     );
                     if (filteredTimingOptions.length === 0) {
-                        filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st) || (t.includes('朝') && t.includes('夕') && t.includes('食後'))));
+                        filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st)));
                     }
                 } else if (freqNum === 3) {
                     filteredTimingOptions = allTimingOptions.filter(t => 
                         t.includes('毎食後') || (t.includes('朝食後') && t.includes('昼食後') && t.includes('夕食後')) || t.includes('1日3回') || t.includes('3回') 
                     );
                     if (filteredTimingOptions.length === 0) {
-                        filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st) || (t.includes('朝') && t.includes('夕') && t.includes('食後'))));
+                        filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st)));
                     }
                 } else {
                     filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st))); 

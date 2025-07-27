@@ -186,6 +186,11 @@
                     <input type="number" id="max_age_months" name="max_age_months" min="0">
                 </div>
 
+                <div class="form-group">
+                    <label for="max_daily_fixed_dose">絶対的な1日最大量:</label>
+                    <input type="number" id="max_daily_fixed_dose" name="max_daily_fixed_dose" step="0.1" placeholder="例: 20.0 (単位は表示単位と同一)">
+                    <p style="font-size: 0.9em; color: #777;">体重・年齢によらず、この量を超えません。表示単位と同一の単位で。</p>
+                </div>
 
                 <div class="form-group">
                     <label for="daily_frequency">1日回数候補 (カンマ区切り、例: 1,2,3):</label>
@@ -232,7 +237,7 @@
             document.getElementById('daily_dose_age_specific_group').style.display = 'none';
             document.getElementById('daily_fixed_dose_group').style.display = 'none';
             
-            // 古いカラムは常に非表示
+            // 古いカラムは常に非表示（必要であれば表示を削除）
             document.getElementById('dose_per_kg_old').style.display = 'none';
             document.getElementById('dose_age_specific_old').style.display = 'none';
             document.getElementById('fixed_dose_old').style.display = 'none';
@@ -266,7 +271,8 @@
                         return;
                     }
                 } else if (key.includes('dose_per_kg') || key.includes('fixed_dose') || // 古い/新しい数値カラム
-                           key === 'min_age_months' || key === 'max_age_months') { // 年齢も数値
+                           key === 'min_age_months' || key === 'max_age_months' ||
+                           key === 'max_daily_dose_per_kg' || key === 'max_daily_fixed_dose') { // 新しい最大量カラムも追加
                     data[key] = value ? parseFloat(value) : null;
                 } else if (key === 'id' && value === '') {
                     continue; 
@@ -320,11 +326,13 @@
             document.getElementById('min_age_months').value = '';
             document.getElementById('max_age_months').value = '';
 
+            document.getElementById('max_daily_fixed_dose').value = ''; // 新しい最大量カラムもクリア
+
             document.getElementById('daily_frequency').value = '';
             document.getElementById('timing_options').value = '';
             document.getElementById('notes').value = '';
-            document.getElementById('formulation_type').value = ''; // 剤形もクリア
-            document.getElementById('calculated_dose_unit').value = ''; // 表示単位もクリア
+            document.getElementById('formulation_type').value = ''; 
+            document.getElementById('calculated_dose_unit').value = ''; 
 
             toggleDoseInputFields(); 
             displayMessage(''); 
@@ -384,6 +392,8 @@
                 
                 document.getElementById('min_age_months').value = drug.min_age_months || '';
                 document.getElementById('max_age_months').value = drug.max_age_months || '';
+
+                document.getElementById('max_daily_fixed_dose').value = drug.max_daily_fixed_dose || ''; // 新しい最大量カラムもロード
 
                 document.getElementById('daily_frequency').value = drug.daily_frequency || '';
                 document.getElementById('timing_options').value = drug.timing_options || ''; 
