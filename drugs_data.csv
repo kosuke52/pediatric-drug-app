@@ -1,6 +1,4 @@
 drug_name,aliases,type,dosage_unit,dose_per_kg,min_age_months,max_age_months,dose_age_specific,fixed_dose,daily_frequency,notes,usage_type,timing_options,formulation_type,calculated_dose_unit,daily_dose_per_kg,daily_fixed_dose,daily_dose_age_specific,max_daily_fixed_dose
-品名,一般名,解熱鎮痛剤,"kg,age,fixed",空欄,最低月齢,最高月齢,空欄,空欄,回数,備考,"内服,頓服","朝夕食後,毎食後",剤形,単位,体重の1日量,固定の1日量,"年齢の１日量{""0-11"":0.5,""12-35"":1.0}",
-,,,,,,,,,,,,,,,,,,
 オゼックス細粒15%,トスフロキサシントシル酸塩,抗菌薬（ニューキノロン系）,kg,,,,,,2,軟骨障害のリスクがあるため、基本的に他に代替薬がない場合に限る,内服,朝夕食後,細粒,g,0.08,,,24
 ワイドシリン細粒10%,アモキシシリン水和物100mg/g,抗菌薬（ペニシリン系）,kg,,,,,,"2,3",空腹時でも可。しばしば下痢が副作用として出やすい。細菌性中耳炎などで高用量が使用されることあり。,内服,"朝夕食後,毎食後",細粒,g,0.3,,,9
 ワイドシリン細粒20%,アモキシシリン水和物200mg/g,抗菌薬（ペニシリン系）,kg,,,,,,"2,3",細粒10%の半量で済むため、服薬量が少なくてすむ。小児に飲ませやすい。下痢に注意。,内服,"朝夕食後,毎食後",細粒,g,0.15,,,4.5
