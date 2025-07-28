@@ -7,11 +7,88 @@ services:
     branch: main   # あなたのデプロイするGitブランチ (main または master)
     rootDir: .     # プロジェクトのルートディレクトリ
     buildCommand: pip install -r requirements.txt
+    # postBuild: python -c "from import_drugs_from_csv import clear_all_drugs_data, import_drugs_from_embedded_data; clear_all_drugs_data(); import_drugs_from_embedded_data()"
+    # ↑これはDeploy Hookなので、サービスが起動する度に実行されてしまいます。初回のみにしたい。
+
+    # ★★★ postBuild を使って初回のみ実行する代替案 ★★★
+    # ただし、これは Render の Web Service が一度起動して DB にテーブルができてからじゃないと失敗する
+    # DBテーブル作成は web_app.py 起動時なので、ここでDB操作は危険
+
+    # 確実に初回のみDBを初期化し、データ投入するには、別の Render サービス（Job）を使うか、
+    # 手動でRender Shell (Starterプラン以上) から実行するのが堅牢。
+    # しかし、Web Shellで問題が発生しているので、別の方法。
+
+    # Option A (Recommended for this situation): Build Command に SQL を含める (ただし、冪等性注意)
+    # これは Python が起動する前なので、直接 SQL を実行するのが良い。
+    # Build Command の最後に `psql` コマンドで SQL を実行する。
+    # ただし、Heroku Postgres の接続情報 `DATABASE_URL` がビルド時に利用可能か要確認。
+    # usually, DATABASE_URL is available at runtime, not build time.
+    # So, postBuild is generally safer as DATABASE_URL is available then.
+
+    # ----------------------------------------------------------------------
+    # OK. Let's go back to the idea of a simple postBuild command.
+    # The problem with 'psycopg2.extensions.connection' object has no attribute 'row_factory'
+    # was when calling get_db_connection() from web_app.py or import_drugs_from_csv.py directly.
+    # The error was caused by the interpretation of DATABASE_URL and row_factory on psycopg2 connection.
+    # We need to make sure the Python script that runs the DB operation is robust.
+    #
+    # The error "tuple object has no attribute cursor" means the first part of the
+    # get_db_connection return was not correctly assigned before calling .cursor().
+    #
+    # The previous solution of `python -c "import os, sqlite3, psycopg2, psycopg2.extras; os.environ['DATABASE_URL'] = 'YOUR_HEROKU_POSTGRES_DATABASE_URL_HERE'; ..."`
+    # was the most complete for the one-liner.
+    # The fact it still failed means either the copy-paste was still problematic,
+    # or the sheer length of the string literal caused an issue.
+
+    # Let's use `postBuild` and run the `import_drugs_from_csv.py` file directly,
+    # ensuring DATABASE_URL is passed, and it cleans and imports.
+    # This `postBuild` script runs AFTER the build is complete.
+    # This also means DATABASE_URL is available.
+
+    # One potential issue with postBuild: it runs every time the app is deployed.
+    # This means the DB will be cleared and re-imported on every deploy.
+    # For initial setup, this is okay, but for production, this is problematic.
+    # We will need to make it conditional later.
+    # For now, let's just make it work for initial data population.
+
+    postBuild: python import_drugs_from_csv.py
+    # This command will execute import_drugs_from_csv.py.
+    # Make sure import_drugs_from_csv.py is configured to clear and import data.
+    # (The current import_drugs_from_csv.py in your files is set to do this if not DATABASE_URL,
+    #  but it needs to do it IF DATABASE_URL for Render.)
+
+    # ----------------------------------------------------------------------
+    # Let's refine import_drugs_from_csv.py's __main__ block one last time
+    # to make it robust for Render's postBuild.
+
+    # Final logic for import_drugs_from_csv.py's __main__
+    # if __name__ == "__main__":
+    #     if os.environ.get('RENDER') == 'true' and os.environ.get('DATABASE_URL'):
+    #         # Only run this on Render (identified by RENDER env var)
+    #         # and if DATABASE_URL is present (meaning it's a web service with DB)
+    #         print("Running initial database setup on Render...")
+    #         clear_all_drugs_data()
+    #         import_drugs_from_embedded_data()
+    #     else:
+    #         # Local development execution
+    #         print("Running local SQLite database import.")
+    #         csv_file = 'drugs_data.csv'
+    #         clear_all_drugs_data()
+    #         import_drugs_from_csv(csv_file) # Assuming this takes a file path
+    # ----------------------------------------------------------------------
+
+    # This requires a final commit to import_drugs_from_csv.py's __main__
+
+    # First, let's provide the render.yaml with postBuild.
+    # This will trigger the import script on Render.
+
     startCommand: gunicorn web_app:app
-    pullRequestPreviewsEnabled: false # 必要に応じて true に変更
-    autoDeploy: true # Git push で自動デプロイ
+    pullRequestPreviewsEnabled: false 
+    autoDeploy: true 
     healthCheckPath: /
-    disk: # ★★★ ここが永続ディスクの設定 ★★★
-      name: drug-data-volume # ディスクの名前
-      mountPath: /var/data   # アプリケーション内のパス（web_app.pyで設定済み）
-      sizeGB: 1              # ディスクサイズ (Starterプランの最大)
+    disk: 
+      name: drug-data-volume 
+      mountPath: /var/data
+      sizeGB: 1
+    # ★★★ postBuild コマンドを追加 ★★★
+    postBuild: python import_drugs_from_csv.py
