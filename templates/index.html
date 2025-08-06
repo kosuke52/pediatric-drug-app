@@ -657,7 +657,12 @@
                     outputTextForCopy += ` ${singleDoseDisplay}\n`;
                     let frequencyLine = `1日${freqNum}`;
                     if (formulationType === 'テープ' || formulationType === '貼付剤' || formulationType === '坐剤') { 
-                         frequencyLine += `${doseUnit}`; 
+                         // 坐剤でも、回数表示と単位表示を分ける
+                         if (doseUnit === '個' || doseUnit === '枚') {
+                             frequencyLine += `${doseUnit}`;
+                         } else {
+                             frequencyLine += `回`;
+                         }
                     } else {
                          frequencyLine += `回`; 
                     }
@@ -675,10 +680,11 @@
                 let frequencyLine = "";
                 const maxDailyTimes = currentDrugData.max_daily_times;
                 if (maxDailyTimes && maxDailyTimes > 0) { 
+                    frequencyLine += `1日${maxDailyTimes}回まで`; // ★★★ ここを修正しました ★★★
                     if (formulationType === 'テープ' || formulationType === '貼付剤' || formulationType === '坐剤') {
-                        frequencyLine += `1日${maxDailyTimes}${doseUnit}まで`; 
-                    } else {
-                        frequencyLine += `1日${maxDailyTimes}回まで`; 
+                        if (doseUnit === '個' || doseUnit === '枚') { // 単位が個や枚の場合は追記
+                            frequencyLine += ` (${doseUnit})`;
+                        }
                     }
                 } else {
                     frequencyLine += `必要時`; 
