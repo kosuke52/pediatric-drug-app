@@ -43,23 +43,31 @@ with app.app_context():
                 drug_name TEXT NOT NULL UNIQUE,
                 aliases TEXT,
                 type TEXT,
-                dosage_unit TEXT NOT NULL,
-                dose_per_kg REAL,
-                min_age_months INTEGER,
-                max_age_months INTEGER,
-                dose_age_specific TEXT,
-                fixed_dose REAL,
+                dosage_unit TEXT NOT NULL, -- 'kg', 'age', 'fixed' (基本単位)
+
+                -- 1回あたり用量に関するフィールド (頓服や内服の1回量計算に使用)
+                single_dose_per_kg REAL,
+                single_fixed_dose REAL,
+                single_dose_age_specific TEXT, -- JSON形式: {"min_age-max_age": dose}
+
+                -- 1日総量に関するフィールド (主に内服薬の1日総量計算に使用)
                 daily_dose_per_kg REAL,
                 daily_fixed_dose REAL,
-                daily_dose_age_specific TEXT,
-                daily_frequency TEXT, 
+                daily_dose_age_specific TEXT, -- JSON形式: {"min_age-max_age": dose}
+                
+                -- 各薬で共通の用量情報
+                min_age_months INTEGER,
+                max_age_months INTEGER,
+                
+                daily_frequency TEXT,       -- カンマ区切り例: "1,2,3"
                 notes TEXT,
-                usage_type TEXT DEFAULT '内服',
-                timing_options TEXT,
-                formulation_type TEXT,
-                calculated_dose_unit TEXT,
-                -- max_daily_dose_per_kg REAL, -- ★★★ この行を削除またはコメントアウト ★★★
-                max_daily_fixed_dose REAL 
+                usage_type TEXT DEFAULT '内服', -- '内服' or '頓服'
+                timing_options TEXT,        -- カンマ区切り例: "毎食後,必要時"
+                formulation_type TEXT,      -- 剤形 (例: 細粒, テープ, 坐剤)
+                calculated_dose_unit TEXT,  -- 最終的な計算結果の単位 (例: mg, ml, g, 個)
+
+                max_daily_fixed_dose REAL,  -- 絶対的な1日最大量 (例: カロナールは4000mg)
+                max_daily_times INTEGER     -- 頓服薬の1日最大服用回数 (例: 頓服は1日3回まで)
             );
         '''
         cursor.execute(create_table_sql)
@@ -154,6 +162,7 @@ def calculate_dosage_api():
     cursor = conn.cursor(cursor_factory=cursor_factory_class) if DATABASE_URL else conn.cursor()
     
     query_placeholder = '%s' if DATABASE_URL else '?'
+    # 新しいカラムも取得するようにSELECT * を使用
     cursor.execute(f"SELECT * FROM drugs WHERE drug_name = {query_placeholder}", (drug_name,))
     drug_info = cursor.fetchone()
     conn.close()
@@ -161,6 +170,7 @@ def calculate_dosage_api():
     if not drug_info:
         return jsonify({"error": "薬の情報が見つかりません。", "drug_data": None}), 404
 
+    # 年齢バリデーション
     if patient_age_months is not None: 
         min_age_drug = drug_info['min_age_months']
         max_age_drug = drug_info['max_age_months']
@@ -177,65 +187,149 @@ def calculate_dosage_api():
                 max_age_years_display += f"{max_age_drug % 12}ヶ月"
             return jsonify({"error": f"{drug_name} は {max_age_years_display}を超える患者には推奨されません。", "drug_data": None}), 400
 
-
-    calculated_daily_dose_value = None 
+    calculated_dose_for_frontend = None # フロントエンドに返す、計算された用量
     final_dose_unit = "" 
+    usage_type = drug_info['usage_type'] if drug_info['usage_type'] else "内服"
     
-    if drug_info['dosage_unit'] == 'kg':
-        if drug_info['daily_dose_per_kg'] is not None: 
-            calculated_daily_dose_value = patient_weight * drug_info['daily_dose_per_kg']
+    # 薬の用法タイプによって計算を分岐
+    if usage_type == '頓服':
+        # 頓服薬の1回用量を計算
+        single_dose_value = None
+        if drug_info['dosage_unit'] == 'kg':
+            if drug_info['single_dose_per_kg'] is not None:
+                single_dose_value = patient_weight * drug_info['single_dose_per_kg']
+            else:
+                return jsonify({"error": f"{drug_name} (頓服) は体重基準ですが、1回あたりの用量データが設定されていません。", "drug_data": None}), 400
+        elif drug_info['dosage_unit'] == 'age':
+            if drug_info['single_dose_age_specific']:
+                age_doses = json.loads(drug_info['single_dose_age_specific'])
+                for age_range_str, dose in age_doses.items():
+                    min_age_db, max_age_db = map(int, age_range_str.split('-'))
+                    if min_age_db <= patient_age_months <= max_age_db:
+                        single_dose_value = dose
+                        break
+                if single_dose_value is None:
+                    return jsonify({"error": f"{drug_name} (頓服) は年齢基準ですが、入力された年齢 ({patient_age_years}歳) に該当する1回用量が見つかりません。", "drug_data": None}), 400
+            else:
+                return jsonify({"error": f"{drug_name} (頓服) は年齢基準ですが、1回用量データが設定されていません。", "drug_data": None}), 400
+        elif drug_info['dosage_unit'] == 'fixed':
+            if drug_info['single_fixed_dose'] is not None:
+                single_dose_value = drug_info['single_fixed_dose']
+            else:
+                return jsonify({"error": f"{drug_name} (頓服) は固定用量ですが、1回用量データが設定されていません。", "drug_data": None}), 400
         else:
-            return jsonify({"error": f"{drug_name} は体重基準ですが、1日あたりの用量データが設定されていません。", "drug_data": None}), 400
-    elif drug_info['dosage_unit'] == 'age':
-        if drug_info['daily_dose_age_specific']: 
-            age_doses = json.loads(drug_info['daily_dose_age_specific'])
-            for age_range_str, dose in age_doses.items():
-                min_age_db, max_age_db = map(int, age_range_str.split('-'))
-                if min_age_db <= patient_age_months <= max_age_db:
-                    calculated_daily_dose_value = dose
-                    break
-            if calculated_daily_dose_value is None:
-                return jsonify({"error": f"{drug_name} は年齢基準ですが、入力された年齢 ({patient_age_years}歳) に該当する1日用量が見つかりません。", "drug_data": None}), 400
-        else:
-            return jsonify({"error": f"{drug_name} は年齢基準ですが、1日用量データが設定されていません。", "drug_data": None}), 400
-    elif drug_info['dosage_unit'] == 'fixed':
-        if drug_info['daily_fixed_dose'] is not None: 
-            calculated_daily_dose_value = drug_info['daily_fixed_dose']
-        else:
-            return jsonify({"error": f"{drug_name} は固定用量ですが、1日総量データが設定されていません。", "drug_data": None}), 400
-    else:
-        return jsonify({"error": f"{drug_name} の用量計算の基準が不明です。", "drug_data": None}), 400
-
-    # ★★★ 1日最大量バリデーションの修正（max_daily_dose_per_kg を削除し、max_daily_fixed_dose のみ使用） ★★★
-    if calculated_daily_dose_value is not None:
+            return jsonify({"error": f"{drug_name} (頓服) の用量計算の基準が不明です。", "drug_data": None}), 400
+        
+        calculated_dose_for_frontend = single_dose_value # 頓服の場合、フロントエンドには1回用量を渡す
+        
+        # 1日最大総量のバリデーション (頓服でも適用される場合)
         max_daily_fixed_dose = drug_info['max_daily_fixed_dose']
+        if max_daily_fixed_dose is not None and calculated_dose_for_frontend is not None:
+            # 暫定的に1回量がmax_daily_fixed_doseを超えるのはおかしい
+            if calculated_dose_for_frontend > max_daily_fixed_dose:
+                return jsonify({"error": f"{drug_name} の1回用量 ({calculated_dose_for_frontend:.3f}) が絶対的な1日最大量 ({max_daily_fixed_dose:.3f}) を超えています。", "drug_data": None}), 400
 
-        if max_daily_fixed_dose is not None:
-            if calculated_daily_dose_value > max_daily_fixed_dose:
-                return jsonify({"error": f"{drug_name} の1日総量 ({calculated_daily_dose_value:.3f}) は、絶対的な1日最大量 ({max_daily_fixed_dose:.3f}) を超えています。", "drug_data": None}), 400
-    # ★★★ ここまで1日最大量バリデーションの修正 ★★★
+    else: # 内服薬の場合
+        # 内服薬の1日総量を計算
+        if drug_info['dosage_unit'] == 'kg':
+            if drug_info['daily_dose_per_kg'] is not None: 
+                calculated_dose_for_frontend = patient_weight * drug_info['daily_dose_per_kg']
+            else:
+                return jsonify({"error": f"{drug_name} (内服) は体重基準ですが、1日あたりの用量データが設定されていません。", "drug_data": None}), 400
+        elif drug_info['dosage_unit'] == 'age':
+            if drug_info['daily_dose_age_specific']: 
+                age_doses = json.loads(drug_info['daily_dose_age_specific'])
+                for age_range_str, dose in age_doses.items():
+                    min_age_db, max_age_db = map(int, age_range_str.split('-'))
+                    if min_age_db <= patient_age_months <= max_age_db:
+                        calculated_dose_for_frontend = dose
+                        break
+                if calculated_dose_for_frontend is None:
+                    return jsonify({"error": f"{drug_name} (内服) は年齢基準ですが、入力された年齢 ({patient_age_years}歳) に該当する1日用量が見つかりません。", "drug_data": None}), 400
+            else:
+                return jsonify({"error": f"{drug_name} (内服) は年齢基準ですが、1日用量データが設定されていません。", "drug_data": None}), 400
+        elif drug_info['dosage_unit'] == 'fixed':
+            if drug_info['daily_fixed_dose'] is not None: 
+                calculated_dose_for_frontend = drug_info['daily_fixed_dose']
+            else:
+                return jsonify({"error": f"{drug_name} (内服) は固定用量ですが、1日総量データが設定されていません。", "drug_data": None}), 400
+        else:
+            return jsonify({"error": f"{drug_name} (内服) の用量計算の基準が不明です。", "drug_data": None}), 400
 
+        # 1日最大総量のバリデーション (内服でも適用される場合)
+        max_daily_fixed_dose = drug_info['max_daily_fixed_dose']
+        if max_daily_fixed_dose is not None and calculated_dose_for_frontend is not None:
+            if calculated_dose_for_frontend > max_daily_fixed_dose:
+                return jsonify({"error": f"{drug_name} の1日総量 ({calculated_dose_for_frontend:.3f}) は、絶対的な1日最大量 ({max_daily_fixed_dose:.3f}) を超えています。", "drug_data": None}), 400
+    
+    # 最終的な単位の設定
     if drug_info['calculated_dose_unit']:
         final_dose_unit = drug_info['calculated_dose_unit']
-    elif drug_info['dosage_unit'] == 'kg':
-        final_dose_unit = "g"
-    elif drug_info['dosage_unit'] == 'age' or drug_info['dosage_unit'] == 'fixed':
-        final_dose_unit = "ml"
+    else: # calculated_dose_unit が設定されていない場合のフォールバック
+        if drug_info['formulation_type'] == '細粒':
+            final_dose_unit = "mg" # もしくは g など
+            # ここで濃度計算が必要であれば追加
+            # 例: もし calculated_dose_for_frontend が mg 単位で、表示は g にしたい場合
+            # if drug_info.get('concentration_mg_per_g'):
+            #    calculated_dose_for_frontend /= drug_info['concentration_mg_per_g']
+            #    final_dose_unit = "g"
+        elif drug_info['formulation_type'] == 'シロップ':
+            final_dose_unit = "ml"
+        elif drug_info['formulation_type'] in ['テープ', '貼付剤', '坐剤']:
+            final_dose_unit = "枚" # または 個
+        else:
+            final_dose_unit = "mg" # デフォルト
+
+    # フロントエンドに返す daily_frequency_options を usage_type に応じて調整
+    daily_frequency_options_for_frontend = []
+    if usage_type == '内服' and drug_info['daily_frequency']:
+        daily_frequency_options_for_frontend = drug_info['daily_frequency'].split(',')
+    elif usage_type == '頓服':
+        # 頓服の場合は、daily_frequency_options は空にするか、
+        # 1日最大服用回数があればそれをオプションとして渡す
+        if drug_info['max_daily_times'] is not None:
+            daily_frequency_options_for_frontend = [str(i) for i in range(1, drug_info['max_daily_times'] + 1)]
+        else:
+            daily_frequency_options_for_frontend = [] # 空にしてフロントエンドで「必要時」を推奨
+
+    # フロントエンドに返す timing_options を usage_type に応じて調整
+    timing_options_for_frontend = []
+    if drug_info['timing_options']:
+        all_timing_options = drug_info['timing_options'].split(',')
+        if usage_type == '内服':
+            # 内服で一般的なタイミングを優先 (例: '毎食後', '朝食後', '夕食後' など)
+            general_timings = ['朝食後', '昼食後', '夕食後', '毎食後', '朝', '昼', '夕', '眠前', '就寝前', '食前', '食間', '1日1回', '1日2回', '1日3回', '1日4回']
+            timing_options_for_frontend = [t for t in all_timing_options if any(gt in t for gt in general_timings)]
+            if not timing_options_for_frontend: # 見つからなければ全て返す
+                 timing_options_for_frontend = all_timing_options
+        else: # 頓服
+            # 頓服で一般的なタイミングを優先 (例: '必要時', '発熱時', '疼痛時' など)
+            situational_timings = ['時', '必要時', '頓服', '発熱時', '疼痛時', '嘔吐時', '咳嗽時', '喘息時']
+            timing_options_for_frontend = [t for t in all_timing_options if any(st in t for st in situational_timings)]
+            if not timing_options_for_frontend: # 見つからなければ「必要時」をデフォルト
+                timing_options_for_frontend = ['必要時']
+    else: # timing_options がDBにない場合
+        if usage_type == '頓服':
+            timing_options_for_frontend = ['必要時']
+        # 内服の場合は空のまま（フロントエンドで「タイミング候補なし」が表示される）
+    
 
     response_data = {
         "drug_name": drug_info['drug_name'],
-        "calculated_daily_dose_value": calculated_daily_dose_value, 
+        "aliases": drug_info.get('aliases'), # フロントエンドで一般名を使用するため追加
+        "calculated_daily_dose_value": calculated_dose_for_frontend, # 名前は daily_dose_value だが、頓服では1回量
         "dose_unit": final_dose_unit,
         "formulation_type": drug_info['formulation_type'] if drug_info['formulation_type'] else "",
         "notes": drug_info['notes'] if drug_info['notes'] else "",
-        "daily_frequency_options": drug_info['daily_frequency'].split(',') if drug_info['daily_frequency'] else [],
-        "timing_options": drug_info['timing_options'].split(',') if drug_info['timing_options'] else [],
-        "initial_usage_type": drug_info['usage_type'] if drug_info['usage_type'] else "内服",
+        "daily_frequency_options": daily_frequency_options_for_frontend, # 調整済み
+        "timing_options": timing_options_for_frontend,                   # 調整済み
+        "initial_usage_type": usage_type,
         "min_age_months": drug_info['min_age_months'], 
         "max_age_months": drug_info['max_age_months'], 
+        "max_daily_fixed_dose": drug_info['max_daily_fixed_dose'], # 必要に応じてフロントエンドへ
+        "max_daily_times": drug_info['max_daily_times'],           # 頓服の最大回数
     }
     return jsonify(response_data)
-
 
 # --- 薬の管理用API ---
 @app.route('/search_all_drug_data')

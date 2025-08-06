@@ -328,10 +328,6 @@
         }
 
         document.addEventListener('DOMContentLoaded', async () => { 
-            // ページロード時の初期検索は行わない（空の検索結果に合わせる）
-            // const response = await fetch('/search?q='); 
-            // const drugs = await response.json();
-            // displayDrugResults(drugs);
             displayDrugResults([]); // 初期表示は空にする
 
             const defaultRadio = document.querySelector('input[name="output_usage_type"][value="内服"]');
@@ -409,7 +405,13 @@
                         console.error(`エラー: value="${initialUsageType}" のラジオボタンが見つかりませんでした。HTMLまたはDBのusage_typeを確認してください。`);
                     }
 
-                    updateDailyFrequencyOptions(currentDrugData.daily_frequency_options);
+                    // 使用区分が頓服の場合、頻度オプションを空にする
+                    if (initialUsageType === '頓服') {
+                        updateDailyFrequencyOptions([]);
+                        document.getElementById('selected_daily_frequency').value = ''; // 値もクリア
+                    } else {
+                        updateDailyFrequencyOptions(currentDrugData.daily_frequency_options);
+                    }
                     
                     const currentFrequencyValue = document.getElementById('selected_daily_frequency').value;
                     let freqToSet = '';
@@ -443,7 +445,13 @@
             toggleDailyFrequencyVisibility(); 
             toggleTimingOptionsVisibility(); 
             if (currentDrugData) {
-                updateDailyFrequencyOptions(currentDrugData.daily_frequency_options); 
+                const selectedUsageType = document.querySelector('input[name="output_usage_type"]:checked')?.value;
+                if (selectedUsageType === '頓服') {
+                    updateDailyFrequencyOptions([]); // 頓服時は頻度オプションをクリア
+                    document.getElementById('selected_daily_frequency').value = ''; // 値もクリア
+                } else {
+                    updateDailyFrequencyOptions(currentDrugData.daily_frequency_options); 
+                }
                 updateTimingOptions(currentDrugData.timing_options, document.getElementById('selected_daily_frequency').value); 
             }
             generateDosageOutput(); 
@@ -481,6 +489,8 @@
                     dailyFrequencyGroup.style.display = 'block'; 
                 } else {
                     dailyFrequencyGroup.style.display = 'none'; 
+                    // 頓服の場合、頻度入力値をクリアする
+                    document.getElementById('selected_daily_frequency').value = ''; 
                 }
             } else {
                 console.error("エラー: 'daily_frequency_group' が見つかりませんでした。HTMLを確認してください。");
@@ -495,49 +505,56 @@
 
             let filteredTimingOptions = [];
 
+            // 服用タイミングの候補リストを定義
+            const generalTimings = ['朝食後', '昼食後', '夕食後', '毎食後', '朝', '昼', '夕', '眠前', '就寝前', '食前', '食間', '1日1回', '1日2回', '1日3回', '1日4回', '1日5回', '1日6回', '1日7回', '1日8回'];
+            const situationalTimings = ['時', '必要時', '頓服', '発熱時', '疼痛時', '嘔吐時', '咳嗽時', '喘息時']; // '時'を含むものをまとめて抽出
+
             if (selectedUsageType === '内服') {
                 const freqNum = parseInt(selectedFrequency);
-                const generalTimings = ['朝食後', '昼食後', '夕食後', '毎食後', '朝', '昼', '夕', '眠前', '就寝前', '食前', '食間'];
-                const situationalTimings = ['時', '必要時', '頓服', '発熱時', '疼痛時'];
-
+                
                 if (isNaN(freqNum) || selectedFrequency === '') { 
-                    filteredTimingOptions = allTimingOptions.filter(t => generalTimings.includes(t));
-                    if (filteredTimingOptions.length === 0) {
+                    // 頻度が未入力または数値でない場合、一般的な服用タイミングを優先
+                    filteredTimingOptions = allTimingOptions.filter(t => generalTimings.some(gt => t.includes(gt)));
+                    if (filteredTimingOptions.length === 0) { // 一般的なタイミングがない場合、頓服系以外全て
                         filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st)));
                     }
                 } else if (freqNum === 1) {
                     filteredTimingOptions = allTimingOptions.filter(t => 
-                        t.includes('朝') || t.includes('眠前') || t.includes('就寝前') || t.includes('1日1回') || t.includes('1回') 
+                        (t.includes('朝') && !t.includes('朝食後') && !t.includes('朝夕') && !t.includes('朝昼夕')) || 
+                        t.includes('眠前') || t.includes('就寝前') || t.includes('1日1回')
                     );
                     if (filteredTimingOptions.length === 0) {
                         filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st)));
                     }
                 } else if (freqNum === 2) {
                     filteredTimingOptions = allTimingOptions.filter(t => 
-                        (t.includes('朝') && (t.includes('夕') || t.includes('眠前'))) || t.includes('朝食後,夕食後') || t.includes('1日2回') || t.includes('2回') 
+                        (t.includes('朝') && t.includes('夕')) || t.includes('朝食後,夕食後') || t.includes('1日2回')
                     );
                     if (filteredTimingOptions.length === 0) {
                         filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st)));
                     }
                 } else if (freqNum === 3) {
                     filteredTimingOptions = allTimingOptions.filter(t => 
-                        t.includes('毎食後') || (t.includes('朝食後') && t.includes('昼食後') && t.includes('夕食後')) || t.includes('1日3回') || t.includes('3回') 
+                        t.includes('毎食後') || (t.includes('朝食後') && t.includes('昼食後') && t.includes('夕食後')) || t.includes('1日3回')
                     );
                     if (filteredTimingOptions.length === 0) {
                         filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st)));
                     }
-                } else {
+                } else { // その他の回数の場合、頓服系以外全て
                     filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st))); 
                 }
                 
+                // フィルター結果が空で、かつ元のオプションに頓服系以外のオプションがある場合、それら全てを表示
                 if (filteredTimingOptions.length === 0 && allTimingOptions.length > 0) {
                     filteredTimingOptions = allTimingOptions.filter(t => !situationalTimings.some(st => t.includes(st)));
                 }
 
-
-            } else { 
+            } else { // 頓服の場合
                 filteredTimingOptions = allTimingOptions.filter(t => situationalTimings.some(st => t.includes(st)));
-                if (filteredTimingOptions.length === 0) filteredTimingOptions = ['必要時']; 
+                // 頓服向けのタイミング候補がない場合、「必要時」をデフォルトにする
+                if (filteredTimingOptions.length === 0) {
+                    filteredTimingOptions = ['必要時']; 
+                }
             }
             
             if (filteredTimingOptions.length > 0) {
@@ -555,9 +572,12 @@
                 opt.textContent = 'タイミング候補なし';
                 timingSelect.appendChild(opt);
             }
+
+            // 頓服の場合、「必要時」を初期選択する
             if (selectedUsageType === '頓服' && filteredTimingOptions.includes('必要時')) {
                  timingSelect.value = '必要時';
             } else {
+                // それ以外の場合は最初のオプションを選択
                 timingSelect.value = filteredTimingOptions[0] || ''; 
             }
         }
@@ -567,11 +587,9 @@
             const timingOptionsGroup = document.getElementById('timing_options_group');
 
             if (timingOptionsGroup) {
-                if (selectedUsageType === '内服') {
-                    timingOptionsGroup.style.display = 'block'; 
-                } else {
-                    timingOptionsGroup.style.display = 'none'; 
-                }
+                // 頓服の場合でもタイミングの選択肢を表示する（ただし内容を頓服向けに調整）
+                // ただし、もし頓服の場合にタイミング選択が不要であれば 'none' に変更してください
+                timingOptionsGroup.style.display = 'block'; 
             } else {
                 console.error("エラー: 'timing_options_group' が見つかりませんでした。HTMLを確認してください。");
             }
@@ -581,7 +599,7 @@
         function generateDosageOutput() {
             if (!currentDrugData || currentDrugData.calculated_daily_dose_value === null) { 
                 const currentText = document.getElementById('dosage_result').textContent;
-                if (!currentText.startsWith("計算エラー")) { 
+                if (!currentText.startsWith("計算エラー") && !currentText.startsWith("薬を選択し")) { 
                     document.getElementById('dosage_result').textContent = "薬を選択し、体重・年齢を入力して計算ボタンを押してください。";
                 }
                 currentCopyText = ""; 
@@ -596,67 +614,65 @@
             
             const selectedUsageType = document.querySelector('input[name="output_usage_type"]:checked').value;
             let selectedFrequency = document.getElementById('selected_daily_frequency').value;
-            if (!selectedFrequency || isNaN(parseInt(selectedFrequency))) { 
-                selectedFrequency = ""; 
-            }
             const selectedTiming = document.getElementById('selected_timing').value; 
-
 
             let outputTextForDisplay = ""; 
             let outputTextForCopy = ""; 
 
             let singleDoseDisplay = ""; 
-
-            if (selectedUsageType === '内服' && selectedFrequency !== "" && parseInt(selectedFrequency) > 0) { 
-                const calculatedSingleDose = calculatedDailyDose / parseInt(selectedFrequency); 
-                singleDoseDisplay = `${calculatedSingleDose.toFixed(3).replace(/\.?0+$/, '')}${doseUnit}`; 
-            } else {
-                singleDoseDisplay = `${calculatedDailyDose.toFixed(3).replace(/\.?0+$/, '')}${doseUnit}`; 
-            }
             
+            // 薬名と一般名
             let generalName = currentDrugData.aliases ? currentDrugData.aliases.split(',')[0] : ''; 
             if (generalName && drugName.includes(generalName)) { 
                 generalName = ''; 
             }
             if (generalName) {
-                outputTextForCopy += `${generalName}（${drugName}） ${singleDoseDisplay}\n`;
+                outputTextForCopy += `${generalName}（${drugName}）`;
             } else {
-                outputTextForCopy += `${drugName} ${singleDoseDisplay}\n`;
+                outputTextForCopy += `${drugName}`;
             }
-            
 
             if (selectedUsageType === '内服') {
-                let frequencyLine = "";
-                if (selectedFrequency !== "") {
-                     frequencyLine += `1日${selectedFrequency}`;
-                     if (formulationType === 'テープ' || formulationType === '貼付剤' || formulationType === '坐剤') { 
-                         frequencyLine += `${doseUnit}`; 
-                     } else {
-                         frequencyLine += `回`; 
-                     }
-                } else {
-                    frequencyLine += `1日 回数不明`; 
-                }
-               
-                if (selectedTiming) { 
-                    frequencyLine += ` ${selectedTiming}`; 
-                }
-                outputTextForCopy += frequencyLine + `\n`; 
-            } else { 
-                let frequencyLine = "";
-                if (selectedFrequency !== "") { 
-                    if (formulationType === 'テープ' || formulationType === '貼付剤' || formulationType === '坐剤') {
-                        frequencyLine += `1日${selectedFrequency}${doseUnit}まで`; 
+                const freqNum = parseInt(selectedFrequency);
+                if (!isNaN(freqNum) && freqNum > 0) {
+                    const calculatedSingleDose = calculatedDailyDose / freqNum; 
+                    singleDoseDisplay = `${calculatedSingleDose.toFixed(3).replace(/\.?0+$/, '')}${doseUnit}`; 
+                    outputTextForCopy += ` ${singleDoseDisplay}\n`;
+                    let frequencyLine = `1日${freqNum}`;
+                    if (formulationType === 'テープ' || formulationType === '貼付剤' || formulationType === '坐剤') { 
+                        // テープ、貼付剤、坐剤の場合、回数ではなく単位を表示
+                        frequencyLine += `${doseUnit}`; 
                     } else {
-                        frequencyLine += `1日${selectedFrequency}回まで`; 
+                        frequencyLine += `回`; 
+                    }
+                    if (selectedTiming && selectedTiming !== 'タイミング候補なし') { 
+                        frequencyLine += ` ${selectedTiming}`; 
+                    }
+                    outputTextForCopy += frequencyLine + `\n`; 
+                } else {
+                    // 内服だが回数が未入力の場合
+                    outputTextForCopy += ` ${calculatedDailyDose.toFixed(3).replace(/\.?0+$/, '')}${doseUnit} （1日回数を入力してください）\n`;
+                    outputTextForCopy += `1日 回数不明\n`;
+                }
+            } else { // 頓服の場合
+                singleDoseDisplay = `${calculatedDailyDose.toFixed(3).replace(/\.?0+$/, '')}${doseUnit}`; 
+                outputTextForCopy += ` ${singleDoseDisplay}\n`;
+                let frequencyLine = "";
+                const freqNum = parseInt(selectedFrequency);
+                if (!isNaN(freqNum) && freqNum > 0) {
+                    // 頓服でも1日最大回数を指定する場合
+                    if (formulationType === 'テープ' || formulationType === '貼付剤' || formulationType === '坐剤') {
+                        frequencyLine += `1日${freqNum}${doseUnit}まで`; 
+                    } else {
+                        frequencyLine += `1日${freqNum}回まで`; 
                     }
                 } else {
-                    frequencyLine += `必要時`; 
+                    frequencyLine += `必要時`; // 頓服で回数指定がない場合は「必要時」
                 }
                 outputTextForCopy += frequencyLine + `\n`; 
 
                 if (selectedTiming && selectedTiming !== '必要時' && selectedTiming !== 'タイミング候補なし') {
-                     outputTextForCopy += ` (${selectedTiming})\n`;
+                     outputTextForCopy += ` (${selectedTiming})\n`; // 頓服で「必要時」以外のタイミングがあれば追記
                 }
             }
 
@@ -702,7 +718,7 @@
             
             const defaultUsageTypeRadio = document.querySelector('input[name="output_usage_type"][value="内服"]');
             if (defaultUsageTypeRadio) { 
-                defaultRadio.checked = true;
+                defaultUsageTypeRadio.checked = true; // corrected variable name
             }
             toggleDailyFrequencyVisibility(); 
             toggleTimingOptionsVisibility(); 
