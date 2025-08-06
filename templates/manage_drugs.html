@@ -145,38 +145,73 @@
                 <div class="form-group">
                     <label>使用区分:</label>
                     <div class="radio-group">
-                        <label><input type="radio" name="usage_type" value="内服" checked> 内服</label>
-                        <label><input type="radio" name="usage_type" value="頓服"> 頓服</label>
+                        <label><input type="radio" name="usage_type" value="内服" checked onchange="toggleDosageFields()"> 内服</label>
+                        <label><input type="radio" name="usage_type" value="頓服" onchange="toggleDosageFields()"> 頓服</label>
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label>用量計算の基準:</label>
-                    <div class="radio-group" id="dosage_unit_radio_group">
-                        <label><input type="radio" name="dosage_unit" value="kg" checked onchange="toggleDoseInputFields()"> 体重 (kg)から1日総量</label>
-                        <label><input type="radio" name="dosage_unit" value="age" onchange="toggleDoseInputFields()"> 年齢 (月齢)から1日総量</label>
-                        <label><input type="radio" name="dosage_unit" value="fixed" onchange="toggleDoseInputFields()"> 1日固定総量</label>
+                <div id="naifuku_inputs">
+                    <div class="form-group">
+                        <label>内服薬の1日総量計算の基準:</label>
+                        <div class="radio-group" id="daily_dosage_unit_radio_group">
+                            <label><input type="radio" name="daily_dosage_unit" value="kg" checked onchange="toggleDailyDoseInputFields()"> 体重 (kg)から1日総量</label>
+                            <label><input type="radio" name="daily_dosage_unit" value="age" onchange="toggleDailyDoseInputFields()"> 年齢 (月齢)から1日総量</label>
+                            <label><input type="radio" name="daily_dosage_unit" value="fixed" onchange="toggleDailyDoseInputFields()"> 1日固定総量</label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" id="daily_dose_per_kg_group" style="display: block;">
+                        <label for="daily_dose_per_kg">体重あたり1日総量 (mg/kg/日、g/kg/日など) (例: 15):</label>
+                        <input type="number" id="daily_dose_per_kg" name="daily_dose_per_kg" step="0.001">
+                    </div>
+
+                    <div class="form-group" id="daily_dose_age_specific_group" style="display: none;">
+                        <label for="daily_dose_age_specific">年齢ごと1日総量 (JSON形式、月齢単位: {"0-12": 1.0, "13-36": 2.0}):</label>
+                        <textarea id="daily_dose_age_specific" name="daily_dose_age_specific" rows="4"></textarea>
+                        <p style="font-size: 0.9em; color: #777;">月齢単位で記述 例: {"0-12": 1.0, "13-36": 2.0}</p>
+                    </div>
+
+                    <div class="form-group" id="daily_fixed_dose_group" style="display: none;">
+                        <label for="daily_fixed_dose">1日固定総量 (例: 5.0):</label>
+                        <input type="number" id="daily_fixed_dose" name="daily_fixed_dose" step="0.1">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="daily_frequency">1日回数候補 (カンマ区切り、例: 1,2,3):</label>
+                        <input type="text" id="daily_frequency" name="daily_frequency">
                     </div>
                 </div>
-                
-                <input type="hidden" id="dose_per_kg_old" name="dose_per_kg" value="">
-                <input type="hidden" id="dose_age_specific_old" name="dose_age_specific" value="">
-                <input type="hidden" id="fixed_dose_old" name="fixed_dose" value="">
 
-                <div class="form-group" id="daily_dose_per_kg_group" style="display: block;">
-                    <label for="daily_dose_per_kg">体重あたり1日総量 (g/kg/日) (例: 0.015):</label>
-                    <input type="number" id="daily_dose_per_kg" name="daily_dose_per_kg" step="0.001">
-                </div>
+                <div id="tonpuku_inputs" style="display: none;">
+                    <div class="form-group">
+                        <label>頓服薬の1回用量計算の基準:</label>
+                        <div class="radio-group" id="single_dosage_unit_radio_group">
+                            <label><input type="radio" name="single_dosage_unit" value="kg" checked onchange="toggleSingleDoseInputFields()"> 体重 (kg)から1回用量</label>
+                            <label><input type="radio" name="single_dosage_unit" value="age" onchange="toggleSingleDoseInputFields()"> 年齢 (月齢)から1回用量</label>
+                            <label><input type="radio" name="single_dosage_unit" value="fixed" onchange="toggleSingleDoseInputFields()"> 1回固定用量</label>
+                        </div>
+                    </div>
 
-                <div class="form-group" id="daily_dose_age_specific_group" style="display: none;">
-                    <label for="daily_dose_age_specific">年齢ごと1日総量 (JSON形式、月齢単位: {"0-12": 1.0, "13-36": 2.0}):</label>
-                    <textarea id="daily_dose_age_specific" name="daily_dose_age_specific" rows="4"></textarea>
-                    <p style="font-size: 0.9em; color: #777;">月齢単位で記述 例: {"0-12": 1.0, "13-36": 2.0}</p>
-                </div>
+                    <div class="form-group" id="single_dose_per_kg_group" style="display: block;">
+                        <label for="single_dose_per_kg">体重あたり1回用量 (mg/kg/回、g/kg/回など) (例: 10):</label>
+                        <input type="number" id="single_dose_per_kg" name="single_dose_per_kg" step="0.001">
+                    </div>
 
-                <div class="form-group" id="daily_fixed_dose_group" style="display: none;">
-                    <label for="daily_fixed_dose">1日固定総量 (例: 5.0):</label>
-                    <input type="number" id="daily_fixed_dose" name="daily_fixed_dose" step="0.1">
+                    <div class="form-group" id="single_dose_age_specific_group" style="display: none;">
+                        <label for="single_dose_age_specific">年齢ごと1回用量 (JSON形式、月齢単位: {"0-12": 1.0, "13-36": 2.0}):</label>
+                        <textarea id="single_dose_age_specific" name="single_dose_age_specific" rows="4"></textarea>
+                        <p style="font-size: 0.9em; color: #777;">月齢単位で記述 例: {"0-12": 1.0, "13-36": 2.0}</p>
+                    </div>
+
+                    <div class="form-group" id="single_fixed_dose_group" style="display: none;">
+                        <label for="single_fixed_dose">1回固定用量 (例: 5.0):</label>
+                        <input type="number" id="single_fixed_dose" name="single_fixed_dose" step="0.1">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="max_daily_times">頓服の1日最大服用回数:</label>
+                        <input type="number" id="max_daily_times" name="max_daily_times" min="0" placeholder="例: 3">
+                    </div>
                 </div>
 
                 <div class="form-group">
@@ -189,18 +224,13 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="max_daily_fixed_dose">絶対的な1日最大量:</label>
+                    <label for="max_daily_fixed_dose">絶対的な1日最大総量:</label>
                     <input type="number" id="max_daily_fixed_dose" name="max_daily_fixed_dose" step="0.1" placeholder="例: 20.0 (単位は表示単位と同一)">
                     <p style="font-size: 0.9em; color: #777;">体重・年齢によらず、この量を超えません。表示単位と同一の単位で。</p>
                 </div>
-
+                
                 <div class="form-group">
-                    <label for="daily_frequency">1日回数候補 (カンマ区切り、例: 1,2,3):</label>
-                    <input type="text" id="daily_frequency" name="daily_frequency">
-                </div>
-
-                <div class="form-group">
-                    <label for="timing_options">服用タイミング候補 (カンマ区切り、例: 朝食後,昼食後,夕食後):</label>
+                    <label for="timing_options">服用タイミング候補 (カンマ区切り、例: 朝食後,昼食後,夕食後,必要時):</label>
                     <input type="text" id="timing_options" name="timing_options">
                 </div>
 
@@ -232,19 +262,35 @@
     <script>
         let currentSelectedDrugId = null; 
 
-        function toggleDoseInputFields() {
-            const selectedUnit = document.querySelector('input[name="dosage_unit"]:checked').value;
+        // ページロード時に、内服の入力欄を表示し、頓服は非表示にする
+        document.addEventListener('DOMContentLoaded', () => {
+            toggleDosageFields(); 
+            searchDrugsForEdit();
+        });
+
+        // 使用区分（内服/頓服）に応じて表示する入力欄を切り替える
+        function toggleDosageFields() {
+            const usageType = document.querySelector('input[name="usage_type"]:checked').value;
+            const naifukuInputs = document.getElementById('naifuku_inputs');
+            const tonpukuInputs = document.getElementById('tonpuku_inputs');
             
+            if (usageType === '内服') {
+                naifukuInputs.style.display = 'block';
+                tonpukuInputs.style.display = 'none';
+                toggleDailyDoseInputFields();
+            } else {
+                naifukuInputs.style.display = 'none';
+                tonpukuInputs.style.display = 'block';
+                toggleSingleDoseInputFields();
+            }
+        }
+        
+        // 内服薬の用量計算基準に応じて入力欄を切り替える
+        function toggleDailyDoseInputFields() {
+            const selectedUnit = document.querySelector('input[name="daily_dosage_unit"]:checked').value;
             document.getElementById('daily_dose_per_kg_group').style.display = 'none';
             document.getElementById('daily_dose_age_specific_group').style.display = 'none';
             document.getElementById('daily_fixed_dose_group').style.display = 'none';
-            
-            // 古いカラムは常に非表示（必要であれば表示を削除）
-            document.getElementById('dose_per_kg_old').style.display = 'none';
-            document.getElementById('dose_age_specific_old').style.display = 'none';
-            document.getElementById('fixed_dose_old').style.display = 'none';
-
-
             if (selectedUnit === 'kg') {
                 document.getElementById('daily_dose_per_kg_group').style.display = 'block';
             } else if (selectedUnit === 'age') {
@@ -253,9 +299,21 @@
                 document.getElementById('daily_fixed_dose_group').style.display = 'block';
             }
         }
-        document.addEventListener('DOMContentLoaded', () => {
-            toggleDoseInputFields();
-        });
+        
+        // 頓服薬の用量計算基準に応じて入力欄を切り替える
+        function toggleSingleDoseInputFields() {
+            const selectedUnit = document.querySelector('input[name="single_dosage_unit"]:checked').value;
+            document.getElementById('single_dose_per_kg_group').style.display = 'none';
+            document.getElementById('single_dose_age_specific_group').style.display = 'none';
+            document.getElementById('single_fixed_dose_group').style.display = 'none';
+            if (selectedUnit === 'kg') {
+                document.getElementById('single_dose_per_kg_group').style.display = 'block';
+            } else if (selectedUnit === 'age') {
+                document.getElementById('single_dose_age_specific_group').style.display = 'block';
+            } else if (selectedUnit === 'fixed') {
+                document.getElementById('single_fixed_dose_group').style.display = 'block';
+            }
+        }
 
 
         document.getElementById('drug_management_form').addEventListener('submit', async (event) => {
@@ -265,27 +323,37 @@
             const formData = new FormData(form);
             const data = {};
             for (let [key, value] of formData.entries()) {
-                if (key === 'daily_dose_age_specific' || key === 'dose_age_specific') { // 古い/新しいJSONカラム両方
+                if (key.includes('dose_age_specific')) {
                     try {
                         data[key] = value ? JSON.parse(value) : null;
                     } catch (e) {
                         displayMessage('年齢ごとの用量データが不正なJSON形式です。', 'error');
                         return;
                     }
-                } else if (key.includes('dose_per_kg') || key.includes('fixed_dose') || // 古い/新しい数値カラム
+                } else if (key.includes('dose_per_kg') || key.includes('fixed_dose') ||
                            key === 'min_age_months' || key === 'max_age_months' ||
-                           key === 'max_daily_dose_per_kg' || key === 'max_daily_fixed_dose') { // 新しい最大量カラムも追加
+                           key === 'max_daily_times' || key === 'max_daily_fixed_dose') {
                     data[key] = value ? parseFloat(value) : null;
                 } else if (key === 'id' && value === '') {
                     continue; 
+                } else if (key === 'dosage_unit') {
+                    continue; // usage_typeに応じて動的に設定するため、フォームの値を無視
                 }
                  else {
                     data[key] = value || null; 
                 }
             }
             
-            data['usage_type'] = document.querySelector('input[name="usage_type"]:checked').value;
-
+            // 使用区分に応じて、用量計算の基準カラム(dosage_unit)と用量データを整理
+            const usageType = document.querySelector('input[name="usage_type"]:checked').value;
+            let dosageUnit;
+            if (usageType === '内服') {
+                dosageUnit = document.querySelector('input[name="daily_dosage_unit"]:checked').value;
+            } else { // 頓服
+                dosageUnit = document.querySelector('input[name="single_dosage_unit"]:checked').value;
+            }
+            data['dosage_unit'] = dosageUnit;
+            data['usage_type'] = usageType;
 
             const drugId = document.getElementById('drug_id').value;
             const method = drugId ? 'PUT' : 'POST'; 
@@ -314,29 +382,22 @@
             }
         });
 
-        // フォームをクリアする (新しいカラムに対応)
         function clearForm() {
             document.getElementById('drug_management_form').reset();
             document.getElementById('drug_id').value = '';
-            document.querySelector('input[name="dosage_unit"][value="kg"]').checked = true; 
-            document.querySelector('input[name="usage_type"][value="内服"]').checked = true; 
             
-            document.getElementById('daily_dose_per_kg').value = '';
-            document.getElementById('daily_fixed_dose').value = '';
-            document.getElementById('daily_dose_age_specific').value = '';
+            // 使用区分は内服に戻す
+            document.querySelector('input[name="usage_type"][value="内服"]').checked = true;
+            toggleDosageFields();
+            
+            // 内服の計算基準も体重に戻す
+            document.querySelector('input[name="daily_dosage_unit"][value="kg"]').checked = true;
+            toggleDailyDoseInputFields();
 
-            document.getElementById('min_age_months').value = '';
-            document.getElementById('max_age_months').value = '';
-
-            document.getElementById('max_daily_fixed_dose').value = ''; // 新しい最大量カラムもクリア
-
-            document.getElementById('daily_frequency').value = '';
-            document.getElementById('timing_options').value = '';
-            document.getElementById('notes').value = '';
-            document.getElementById('formulation_type').value = ''; 
-            document.getElementById('calculated_dose_unit').value = ''; 
-
-            toggleDoseInputFields(); 
+            // 頓服の計算基準も体重に戻す
+            document.querySelector('input[name="single_dosage_unit"][value="kg"]').checked = true;
+            toggleSingleDoseInputFields();
+            
             displayMessage(''); 
             currentSelectedDrugId = null;
         }
@@ -369,13 +430,13 @@
             });
         }
 
-        // 編集のために薬の情報をフォームにロード (新しいカラムに対応)
         async function loadDrugForEdit(drugId) {
             currentSelectedDrugId = drugId;
             const response = await fetch(`/drugs/${drugId}`);
             const drug = await response.json();
 
             if (response.ok) {
+                // 既存の入力欄に値を設定
                 document.getElementById('drug_id').value = drug.id;
                 document.getElementById('drug_name').value = drug.drug_name;
                 document.getElementById('aliases').value = drug.aliases || '';
@@ -383,20 +444,31 @@
                 document.getElementById('formulation_type').value = drug.formulation_type || ''; 
                 document.getElementById('calculated_dose_unit').value = drug.calculated_dose_unit || ''; 
                 
+                // 使用区分ラジオボタンをチェック
                 document.querySelector(`input[name="usage_type"][value="${drug.usage_type || '内服'}"]`).checked = true;
+                toggleDosageFields(); // 内服/頓服の入力欄を表示/非表示
 
-                document.querySelector(`input[name="dosage_unit"][value="${drug.dosage_unit}"]`).checked = true;
-                toggleDoseInputFields(); // 表示の切り替え
-
-                document.getElementById('daily_dose_per_kg').value = drug.daily_dose_per_kg || '';
-                document.getElementById('daily_fixed_dose').value = drug.daily_fixed_dose || '';
-                document.getElementById('daily_dose_age_specific').value = drug.daily_dose_age_specific ? JSON.stringify(drug.daily_dose_age_specific, null, 2) : '';
+                // 内服の場合の用量設定
+                if (drug.usage_type === '内服') {
+                    document.querySelector(`input[name="daily_dosage_unit"][value="${drug.dosage_unit}"]`).checked = true;
+                    toggleDailyDoseInputFields();
+                    document.getElementById('daily_dose_per_kg').value = drug.daily_dose_per_kg || '';
+                    document.getElementById('daily_fixed_dose').value = drug.daily_fixed_dose || '';
+                    document.getElementById('daily_dose_age_specific').value = drug.daily_dose_age_specific ? JSON.stringify(drug.daily_dose_age_specific, null, 2) : '';
+                } else { // 頓服の場合の用量設定
+                    document.querySelector(`input[name="single_dosage_unit"][value="${drug.dosage_unit}"]`).checked = true;
+                    toggleSingleDoseInputFields();
+                    document.getElementById('single_dose_per_kg').value = drug.single_dose_per_kg || '';
+                    document.getElementById('single_fixed_dose').value = drug.single_fixed_dose || '';
+                    document.getElementById('single_dose_age_specific').value = drug.single_dose_age_specific ? JSON.stringify(drug.single_dose_age_specific, null, 2) : '';
+                }
                 
+                document.getElementById('max_daily_times').value = drug.max_daily_times || '';
+                
+                // 共通の入力欄
                 document.getElementById('min_age_months').value = drug.min_age_months || '';
                 document.getElementById('max_age_months').value = drug.max_age_months || '';
-
-                document.getElementById('max_daily_fixed_dose').value = drug.max_daily_fixed_dose || ''; // 新しい最大量カラムもロード
-
+                document.getElementById('max_daily_fixed_dose').value = drug.max_daily_fixed_dose || '';
                 document.getElementById('daily_frequency').value = drug.daily_frequency || '';
                 document.getElementById('timing_options').value = drug.timing_options || ''; 
                 document.getElementById('notes').value = drug.notes || '';
