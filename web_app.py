@@ -444,6 +444,7 @@ def add_drug():
         conn.close()
         return jsonify({"error": f"薬の追加中にエラーが発生しました: {str(e)}"}), 500
 
+# ★★★ 修正後の update_drug 関数 ★★★
 @app.route('/drugs/<int:drug_id>', methods=['PUT'])
 def update_drug(drug_id):
     data = request.get_json()
@@ -459,38 +460,37 @@ def update_drug(drug_id):
     try:
         update_set_clause = '''
             drug_name = %s, aliases = %s, type = %s, dosage_unit = %s,
-            dose_per_kg = %s, min_age_months = %s, max_age_months = %s,
-            dose_age_specific = %s, fixed_dose = %s, 
+            single_dose_per_kg = %s, single_fixed_dose = %s, single_dose_age_specific = %s, 
             daily_dose_per_kg = %s, daily_fixed_dose = %s, daily_dose_age_specific = %s,
+            min_age_months = %s, max_age_months = %s,
             daily_frequency = %s, notes = %s,
             usage_type = %s, timing_options = %s, formulation_type = %s, calculated_dose_unit = %s,
-            -- max_daily_dose_per_kg = %s, -- ★★★ この行を削除またはコメントアウト ★★★
-            max_daily_fixed_dose = %s 
+            max_daily_fixed_dose = %s, max_daily_times = %s 
         '''
         if not DATABASE_URL: # SQLiteの場合
             update_set_clause = update_set_clause.replace('%s', '?')
 
         values = (
-            drug_name,
+            data.get('drug_name'),
             data.get('aliases'),
             data.get('type'),
             data.get('dosage_unit'),
-            data.get('dose_per_kg'), 
-            data.get('min_age_months'),
-            data.get('max_age_months'),
-            json.dumps(data.get('dose_age_specific')) if data.get('dose_age_specific') else None, 
-            data.get('fixed_dose'), 
+            data.get('single_dose_per_kg'),
+            data.get('single_fixed_dose'),
+            json.dumps(data.get('single_dose_age_specific')) if data.get('single_dose_age_specific') else None,
             data.get('daily_dose_per_kg'), 
             data.get('daily_fixed_dose'), 
             json.dumps(data.get('daily_dose_age_specific')) if data.get('daily_dose_age_specific') else None, 
+            data.get('min_age_months'),
+            data.get('max_age_months'),
             data.get('daily_frequency'),
             data.get('notes'),
             data.get('usage_type', '内服'),
             data.get('timing_options'),
             data.get('formulation_type'),
             data.get('calculated_dose_unit'),
-            # data.get('max_daily_dose_per_kg'), -- ★★★ この行を削除またはコメントアウト ★★★
-            data.get('max_daily_fixed_dose') 
+            data.get('max_daily_fixed_dose'),
+            data.get('max_daily_times') 
         )
         
         where_placeholder = '%s' if DATABASE_URL else '?'
